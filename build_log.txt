@@ -1,0 +1,15 @@
+
+> rotaract-event-platform@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 44 modules transformed.
+Γ£ù Build failed in 604ms
+error during build:
+Could not resolve "../../context/AuthContext" from "src/pages/QRScanner.jsx"
+file: C:/Users/Asus/.gemini/antigravity/scratch/rotaract-event-platform/src/pages/QRScanner.jsx
+    at getRollupError (file:///C:/Users/Asus/.gemini/antigravity/scratch/rotaract-event-platform/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at error (file:///C:/Users/Asus/.gemini/antigravity/scratch/rotaract-event-platform/node_modules/rollup/dist/es/shared/parseAst.js:398:42)
+    at ModuleLoader.handleInvalidResolvedId (file:///C:/Users/Asus/.gemini/antigravity/scratch/rotaract-event-platform/node_modules/rollup/dist/es/shared/node-entry.js:21687:24)
+    at file:///C:/Users/Asus/.gemini/antigravity/scratch/rotaract-event-platform/node_modules/rollup/dist/es/shared/node-entry.js:21647:26
