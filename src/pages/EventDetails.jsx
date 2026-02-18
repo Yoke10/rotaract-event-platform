@@ -39,7 +39,7 @@ export default function EventDetails() {
         );
     }
 
-    const isSoldOut = (event.ticketsSold || 0) >= (event.totalTickets || event.totalSeats || 0);
+    const isSoldOut = event.totalTickets && (event.ticketsSold || 0) >= event.totalTickets;
     const isClosed = event.status !== 'active' || (event.registrationCloseDate && new Date(event.registrationCloseDate) < new Date());
 
     return (
@@ -121,19 +121,11 @@ export default function EventDetails() {
                                     </div>
                                 </div>
 
-                                <div className="p-4 bg-gray-50 rounded-xl mb-8 flex justify-between items-center border border-gray-100">
-                                    <div>
-                                        <p className="text-xs font-semibold" style={{ color: '#6b6b6b' }}>Availability</p>
-                                        <p className="font-bold" style={{ color: '#1a1a1a' }}>
-                                            {(event.totalTickets || event.totalSeats || 0) - (event.ticketsSold || 0)} seats left
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs font-semibold" style={{ color: '#6b6b6b' }}>Registration Closes</p>
-                                        <p className="font-bold" style={{ color: '#1a1a1a' }}>
-                                            {new Date(event.registrationCloseDate || event.date).toLocaleDateString()}
-                                        </p>
-                                    </div>
+                                <div className="p-4 bg-gray-50 rounded-xl mb-8 border border-gray-100">
+                                    <p className="text-xs font-semibold" style={{ color: '#6b6b6b' }}>Registration Closes</p>
+                                    <p className="font-bold" style={{ color: '#1a1a1a' }}>
+                                        {new Date(event.registrationCloseDate || event.date).toLocaleDateString()}
+                                    </p>
                                 </div>
                             </div>
 

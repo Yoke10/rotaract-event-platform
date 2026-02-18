@@ -35,10 +35,10 @@ export default function Navbar() {
 
                     {/* Desktop Menu */}
                     <div className="hidden md:flex items-center space-x-8">
-                        {['Home', 'Events'].map((item) => (
+                        {['Home', 'Events', ...(currentUser ? ['My Tickets'] : [])].map((item) => (
                             <Link
                                 key={item}
-                                to={item === 'Home' ? '/' : `/${item.toLowerCase()}`}
+                                to={item === 'Home' ? '/' : item === 'My Tickets' ? '/my-tickets' : `/${item.toLowerCase()}`}
                                 className="font-medium transition-colors relative group"
                                 style={{ color: '#4a4a4a' }}
                             >
@@ -52,6 +52,15 @@ export default function Navbar() {
 
                     {/* User Profile / Login */}
                     <div className="hidden md:flex items-center space-x-4">
+                        <Link
+                            to="/scanner"
+                            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                            title="QR Scanner"
+                            style={{ color: '#400763' }}
+                        >
+                            <svg data-id="25" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-qr-code w-6 h-6"><rect width="5" height="5" x="3" y="3" rx="1"></rect><rect width="5" height="5" x="16" y="3" rx="1"></rect><rect width="5" height="5" x="3" y="16" rx="1"></rect><path d="M21 16h-3a2 2 0 0 0-2 2v3"></path><path d="M21 21v.01"></path><path d="M12 7v3a2 2 0 0 1-2 2H7"></path><path d="M3 12h.01"></path><path d="M12 3h.01"></path><path d="M12 16v.01"></path><path d="M16 12h1"></path><path d="M21 12v.01"></path><path d="M12 21v-1"></path></svg>
+                        </Link>
+
                         {currentUser ? (
                             <div className="relative">
                                 <button
@@ -78,15 +87,15 @@ export default function Navbar() {
                                         <Link
                                             to="/my-tickets"
                                             className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors"
-                                            style={{ color: '#4a4a4a' }}
+                                            style={{ color: '#400763' }}
+                                            onClick={() => setDropdownOpen(false)}
                                         >
-                                            <User className="w-5 h-5 mr-3" style={{ color: '#400763' }} />
+                                            <User className="w-5 h-5 mr-3" />
                                             <span>My Tickets</span>
                                         </Link>
                                         <button
                                             onClick={handleLogout}
-                                            className="flex items-center w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                                            style={{ color: '#ef4444' }}
+                                            className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition-colors text-red-600"
                                         >
                                             <LogOut className="w-5 h-5 mr-3" />
                                             <span>Logout</span>
@@ -98,16 +107,9 @@ export default function Navbar() {
                             <div className="flex items-center space-x-3">
                                 <Link
                                     to="/login"
-                                    className="px-6 py-2 font-semibold rounded-full transition-all"
-                                    style={{ color: '#400763' }}
-                                >
-                                    Login
-                                </Link>
-                                <Link
-                                    to="/signup"
                                     className="btn-primary"
                                 >
-                                    Sign Up
+                                    Login
                                 </Link>
                             </div>
                         )}
@@ -129,10 +131,10 @@ export default function Navbar() {
                 {isOpen && (
                     <div className="md:hidden py-4 border-t border-gray-200">
                         <div className="flex flex-col space-y-3">
-                            {['Home', 'Events'].map((item) => (
+                            {['Home', 'Events', ...(currentUser ? ['My Tickets'] : [])].map((item) => (
                                 <Link
                                     key={item}
-                                    to={item === 'Home' ? '/' : `/${item.toLowerCase()}`}
+                                    to={item === 'Home' ? '/' : item === 'My Tickets' ? '/my-tickets' : `/${item.toLowerCase()}`}
                                     className="px-4 py-2 font-medium rounded-lg hover:bg-gray-50 transition-colors"
                                     style={{ color: '#4a4a4a' }}
                                     onClick={() => setIsOpen(false)}
@@ -142,14 +144,6 @@ export default function Navbar() {
                             ))}
                             {currentUser ? (
                                 <>
-                                    <Link
-                                        to="/my-tickets"
-                                        className="px-4 py-2 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                                        style={{ color: '#4a4a4a' }}
-                                        onClick={() => setIsOpen(false)}
-                                    >
-                                        My Tickets
-                                    </Link>
                                     {userRole === 'admin' && (
                                         <Link
                                             to="/admin/dashboard"
@@ -172,8 +166,7 @@ export default function Navbar() {
                                 <>
                                     <Link
                                         to="/login"
-                                        className="px-4 py-2 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                                        style={{ color: '#4a4a4a' }}
+                                        className="btn-primary mx-4"
                                         onClick={() => setIsOpen(false)}
                                     >
                                         Login

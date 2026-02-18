@@ -9,13 +9,17 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PrivateRoute from './components/PrivateRoute';
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminLayout from './components/AdminLayout';
 import CreateEvent from './pages/admin/CreateEvent';
 import EventDashboard from './pages/admin/EventDashboard';
+import CheckInDashboard from './pages/admin/CheckInDashboard';
 import EventDetails from './pages/EventDetails';
 import Booking from './pages/Booking';
 import BookingSuccess from './pages/BookingSuccess';
 import MyTickets from './pages/MyTickets';
 import QRScanner from './pages/QRScanner';
+import ParticipantDetails from './pages/ParticipantDetails';
 
 // Layout component to include Navbar
 const Layout = () => {
@@ -35,6 +39,10 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
+          {/* Standalone Admin Login */}
+          <Route path="/admin-login" element={<AdminLogin />} />
+
+          {/* User Layout Routes */}
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/events" element={<Events />} />
@@ -52,15 +60,20 @@ function App() {
                 <BookingSuccess />
               </PrivateRoute>
             } />
-
-            {/* Protected User Routes */}
+            <Route path="/participant-details" element={
+              <PrivateRoute>
+                <ParticipantDetails />
+              </PrivateRoute>
+            } />
             <Route path="/my-tickets" element={
               <PrivateRoute>
                 <MyTickets />
               </PrivateRoute>
             } />
+          </Route>
 
-            {/* Protected Admin Routes */}
+          {/* Admin Layout Routes */}
+          <Route element={<AdminLayout />}>
             <Route path="/admin/dashboard" element={
               <PrivateRoute requiredRole="admin">
                 <AdminDashboard />
@@ -84,6 +97,11 @@ function App() {
             <Route path="/admin/event/:id" element={
               <PrivateRoute requiredRole="admin">
                 <EventDashboard />
+              </PrivateRoute>
+            } />
+            <Route path="/admin/event/:id/checkin" element={
+              <PrivateRoute requiredRole="admin">
+                <CheckInDashboard />
               </PrivateRoute>
             } />
           </Route>

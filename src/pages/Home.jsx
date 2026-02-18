@@ -37,14 +37,7 @@ export default function Home() {
                 background: 'linear-gradient(135deg, #400763 0%, #680b56 50%, #ed0775 100%)'
             }}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 mt-20 relative">
-                    {/* Scanner Icon */}
-                    <Link
-                        to="/scanner"
-                        className="absolute top-0 right-4 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-all border border-white/20 shadow-lg group"
-                        title="Open QR Scanner"
-                    >
-                        <QrCode className="w-8 h-8 group-hover:scale-110 transition-transform" />
-                    </Link>
+
 
                     <div className="text-center relative z-10">
                         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-6">

@@ -5,6 +5,7 @@ import { mockPaymentService } from '../services/mockPaymentService';
 import { useAuth } from '../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import { Loader2, CheckCircle, XCircle, ArrowLeft, Shield } from 'lucide-react';
+import { clubService } from '../services/clubService';
 
 export default function Booking() {
     const { id } = useParams();
@@ -14,11 +15,22 @@ export default function Booking() {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
     const [paymentResult, setPaymentResult] = useState(null);
+    const [clubs, setClubs] = useState([]);
     const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
     useEffect(() => {
         loadEvent();
+        loadClubs();
     }, [id]);
+
+    const loadClubs = async () => {
+        try {
+            const clubsData = await clubService.getClubs();
+            setClubs(clubsData);
+        } catch (error) {
+            console.error("Failed to load clubs:", error);
+        }
+    };
 
     const loadEvent = async () => {
         try {
@@ -80,12 +92,19 @@ export default function Booking() {
                     createdAt: new Date().toISOString()
                 };
 
-                await eventService.createBooking(booking);
+                console.log("Creating booking with data:", booking);
+                const createdBooking = await eventService.createBooking(booking);
+                console.log("Booking created successfully:", createdBooking);
 
-                // Redirect to success page after 2 seconds
+                // Redirect to participant details page
                 setTimeout(() => {
-                    navigate('/booking-success', { state: { booking, paymentResult: result } });
-                }, 2000);
+                    navigate('/participant-details', {
+                        state: {
+                            booking: { ...booking, firestoreId: createdBooking.firestoreId },
+                            paymentResult: result
+                        }
+                    });
+                }, 1500);
             }
         } catch (error) {
             console.error("Payment error:", error);
@@ -194,8 +213,8 @@ export default function Booking() {
                                         disabled={processing}
                                     >
                                         <option value="">Select your club</option>
-                                        {event.clubs?.map(club => (
-                                            <option key={club} value={club}>{club}</option>
+                                        {clubs.map(club => (
+                                            <option key={club.id} value={club.name}>{club.name}</option>
                                         ))}
                                     </select>
                                 </div>

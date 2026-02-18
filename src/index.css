@@ -400,3 +400,52 @@
     transform: scale(1.05);
   }
 }
+
+@keyframes scanLine {
+  0% {
+    top: 10%;
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    top: 90%;
+    opacity: 1;
+  }
+}
+
+.animate-scan-line {
+  animation: scanLine 2s ease-in-out infinite alternate;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+/* ── Hide default html5-qrcode library UI ── */
+#qr-scanner-viewport>div>img,
+#qr-scanner-viewport>div>div:first-child,
+#qr-scanner-viewport span,
+#qr-scanner-viewport select,
+#qr-scanner-viewport button:not(.custom-btn) {
+  display: none !important;
+}
+
+#qr-scanner-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem;
+}
+
+#qr-scanner-viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}

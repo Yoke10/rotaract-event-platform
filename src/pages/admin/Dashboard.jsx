@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
-import { exportService } from '../../services/exportService';
-import { PlusCircle, Calendar, Users, DollarSign, Edit, Trash2, Download, QrCode } from 'lucide-react';
+import { Calendar, Users, Edit, Trash2 } from 'lucide-react';
 
 export default function AdminDashboard() {
     const [events, setEvents] = useState([]);
@@ -35,81 +34,8 @@ export default function AdminDashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold text-white tracking-tight">Admin Dashboard</h1>
-                    <p className="text-gray-400 mt-1">Manage events, track sales, and monitor revenue.</p>
-                </div>
-                <div className="flex space-x-3">
-                    <button
-                        onClick={() => exportService.exportToExcel()}
-                        className="btn-secondary flex items-center"
-                    >
-                        <Download className="mr-2 h-5 w-5" /> Export Data
-                    </button>
-                    <Link
-                        to="/admin/scanner"
-                        className="btn-secondary flex items-center border-purple-500 text-purple-600 hover:bg-purple-50"
-                        style={{ borderColor: '#400763', color: '#400763' }}
-                    >
-                        <QrCode className="mr-2 h-5 w-5" /> Scan Tickets
-                    </Link>
-                    <Link
-                        to="/admin/create-event"
-                        className="btn-primary flex items-center"
-                    >
-                        <PlusCircle className="mr-2 h-5 w-5" /> Create Event
-                    </Link>
-                </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-                <div className="glass-card p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Calendar className="h-24 w-24 text-indigo-500" />
-                    </div>
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-500/20 p-3 rounded-lg">
-                            <Calendar className="h-8 w-8 text-indigo-400" />
-                        </div>
-                        <div className="ml-5">
-                            <p className="text-sm font-medium text-gray-400">Total Events</p>
-                            <p className="text-3xl font-bold text-white">{events.length}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="glass-card p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Users className="h-24 w-24 text-green-500" />
-                    </div>
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-green-500/20 p-3 rounded-lg">
-                            <Users className="h-8 w-8 text-green-400" />
-                        </div>
-                        <div className="ml-5">
-                            <p className="text-sm font-medium text-gray-400">Tickets Sold</p>
-                            <p className="text-3xl font-bold text-white">
-                                {events.reduce((acc, curr) => acc + (curr.ticketsSold || 0), 0)}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="glass-card p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <DollarSign className="h-24 w-24 text-yellow-500" />
-                    </div>
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-yellow-500/20 p-3 rounded-lg">
-                            <DollarSign className="h-8 w-8 text-yellow-400" />
-                        </div>
-                        <div className="ml-5">
-                            <p className="text-sm font-medium text-gray-400">Total Revenue</p>
-                            <p className="text-3xl font-bold text-white">
-                                ₹{events.reduce((acc, curr) => acc + ((curr.ticketsSold || 0) * (curr.ticketPrice || 0)), 0).toLocaleString()}
-                            </p>
-                        </div>
-                    </div>
+                    <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Admin Dashboard</h1>
+                    <p className="text-gray-600 mt-1">Manage events, track sales, and monitor revenue.</p>
                 </div>
             </div>
 
@@ -118,18 +44,14 @@ export default function AdminDashboard() {
                 {events.map((event) => (
                     <div key={event.id} className="glass-card hover:translate-y-[-4px] transition-transform duration-300">
                         {/* Event Image Cover (Placeholder or actual) */}
-                        <div className="h-40 bg-gray-800 rounded-t-xl relative overflow-hidden group">
-                            {event.imageUrl ? (
-                                <img src={event.imageUrl} alt={event.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900 to-indigo-900">
-                                    <Calendar className="text-white/20 w-16 h-16" />
-                                </div>
+                        <div className="relative h-40 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-t-xl overflow-hidden">
+                            {event.posterURL && (
+                                <img src={event.posterURL} alt={event.name} className="w-full h-full object-cover opacity-40" />
                             )}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                                <Link to={`/admin/event/${event.id}`} className="p-2 bg-white rounded-full text-indigo-600 hover:bg-gray-100">
-                                    <Users className="w-5 h-5" />
-                                </Link>
+                            <div className="absolute top-3 left-3 right-3">
+                                <h3 className="text-xl font-bold text-white mb-1">{event.name}</h3>
+                            </div>
+                            <div className="absolute top-3 right-3 flex gap-2">
                                 <Link to={`/admin/edit-event/${event.id}`} className="p-2 bg-white rounded-full text-indigo-600 hover:bg-gray-100">
                                     <Edit className="w-5 h-5" />
                                 </Link>
@@ -140,7 +62,6 @@ export default function AdminDashboard() {
                         </div>
 
                         <Link to={`/admin/event/${event.id}`} className="block p-5">
-                            <h3 className="text-xl font-bold text-white mb-2">{event.name}</h3>
                             <div className="space-y-2 text-sm text-gray-400">
                                 <div className="flex items-center">
                                     <Calendar className="w-4 h-4 mr-2 text-indigo-400" />

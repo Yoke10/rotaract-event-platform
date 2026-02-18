@@ -28,7 +28,7 @@ const Footer = () => {
                         <h4 className="font-bold text-gray-900 mb-4">Admin</h4>
                         <ul className="space-y-2 text-sm text-gray-500">
                             <li>
-                                <Link to="/login" className="flex items-center hover:text-indigo-600 transition-colors group">
+                                <Link to="/admin-login" className="flex items-center hover:text-indigo-600 transition-colors group">
                                     <Shield className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
                                     Admin Login
                                 </Link>
