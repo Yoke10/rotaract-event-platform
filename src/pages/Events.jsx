@@ -98,11 +98,11 @@ export default function Events() {
                                     </div>
                                     <div className="flex items-center" style={{ color: '#4a4a4a' }}>
                                         <MapPin className="w-4 h-4 mr-2" style={{ color: '#ed0775' }} />
-                                        <span className="text-sm">{event.venue}</span>
+                                        <span className="text-sm">{event.venue || event.location}</span>
                                     </div>
                                     <div className="flex items-center" style={{ color: '#4a4a4a' }}>
                                         <Ticket className="w-4 h-4 mr-2" style={{ color: '#680b56' }} />
-                                        <span className="text-sm">{event.totalSeats - (event.ticketsSold || 0)} seats left</span>
+                                        <span className="text-sm">{(() => { const seats = event.totalSeats ?? event.totalTickets; if (!seats) return 'Unlimited'; return (seats - (event.ticketsSold || 0)) + ' seats left'; })()}</span>
                                     </div>
                                 </div>
 
@@ -121,3 +121,5 @@ export default function Events() {
         </div>
     );
 }
+
+

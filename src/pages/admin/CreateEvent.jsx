@@ -2,140 +2,182 @@ import React, { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { eventService } from '../../services/eventService';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, ChevronRight, ChevronLeft, Calendar, MapPin, DollarSign, List, Shield, Info } from 'lucide-react';
+import {
+    Check, ChevronRight, ChevronLeft, DollarSign, List, Shield,
+    Info, Plus, Trash2, Layers, Tag, GitBranch, Settings, Image,
+    Users, Globe, PenLine
+} from 'lucide-react';
 import { clubService } from '../../services/clubService';
 
-// Steps Configuration
 const STEPS = [
-    { id: 1, name: 'Event Basics', icon: Info },
-    { id: 2, name: 'Tickets & Access', icon: DollarSign },
-    { id: 3, name: 'Features & Comforts', icon: List },
+    { id: 1, name: 'Basics', icon: PenLine },
+    { id: 2, name: 'Tickets', icon: DollarSign },
+    { id: 3, name: 'Features', icon: List },
     { id: 4, name: 'Policies', icon: Shield },
-    { id: 5, name: 'Custom Fields', icon: Calendar },
+    { id: 5, name: 'Advanced', icon: Settings },
 ];
 
-
+const EVENT_TYPES = [
+    { value: 'rotaract', label: 'Rotaract Event', desc: 'Club-based, with member tracking' },
+    { value: 'marathon', label: 'Marathon / Run', desc: 'Race-style events, distance categories' },
+    { value: 'symposium', label: 'Symposium / Multi-Track', desc: 'Multiple sessions or sub-events' },
+    { value: 'general', label: 'Simple / General', desc: 'Any other event format' },
+];
 
 const COMFORTS_LIST = [
-    "Wi-Fi Access",
-    "Air Conditioning",
-    "Parking Available",
-    "Food & Beverages",
-    "Restrooms",
-    "Wheelchair Accessible",
-    "First Aid Kit",
-    "Security Personnel",
-    "Photography / Videography"
+    'Wi-Fi Access', 'Air Conditioning', 'Parking Available',
+    'Food & Beverages', 'Restrooms', 'Wheelchair Accessible',
+    'First Aid Kit', 'Security Personnel', 'Photography / Videography',
 ];
+
+// ── Reusable Toggle Switch ────────────────────────────────────────────────
+function ToggleSwitch({ enabled, onToggle, label, description }) {
+    return (
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 mb-4">
+            <div>
+                <p className="font-semibold text-gray-800 text-sm">{label}</p>
+                {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+            </div>
+            <button type="button" onClick={onToggle}
+                className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                aria-checked={enabled} role="switch">
+                <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+        </div>
+    );
+}
+
+function ModuleSection({ enabled, children }) {
+    if (!enabled) return null;
+    return (
+        <div className="space-y-4 mt-2 pl-3 border-l-2 border-indigo-200 animate-fadeIn">
+            {children}
+        </div>
+    );
+}
 
 export default function CreateEvent() {
     const { id } = useParams();
     const navigate = useNavigate();
+
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [accessCodeError, setAccessCodeError] = useState('');
-    const [customComforts, setCustomComforts] = useState([]);
-    const [newComfort, setNewComfort] = useState('');
     const [clubs, setClubs] = useState([]);
     const [newClubName, setNewClubName] = useState('');
     const [showAddClub, setShowAddClub] = useState(false);
+
+    // ── Event type & status ────────────────────────────────────────────────
+    const [eventType, setEventType] = useState('rotaract');
+    const [status, setStatus] = useState('active'); // 'active' | 'draft'
+
+    // ── Module toggles ─────────────────────────────────────────────────────
+    const [enableTicketModule, setEnableTicketModule] = useState(true);
+    const [enableTicketTiers, setEnableTicketTiers] = useState(false);
+    const [enablePricingCategories, setEnablePricingCategories] = useState(false);
+    const [enableCategories, setEnableCategories] = useState(true);
+    const [enableSubEvents, setEnableSubEvents] = useState(false);
+    const [enableCustomFields, setEnableCustomFields] = useState(false);
+
+    // ── Comforts ───────────────────────────────────────────────────────────
+    const [customComforts, setCustomComforts] = useState([]);
+    const [newComfort, setNewComfort] = useState('');
+
+    // ── Ticket Tiers ───────────────────────────────────────────────────────
+    const [ticketTiers, setTicketTiers] = useState([
+        { tierName: '', price: '', maxQuantity: '', description: '' }
+    ]);
+
+    // ── Pricing Categories ────────────────────────────────────────────────
+    const [pricingCategories, setPricingCategories] = useState([
+        { categoryName: '', price: '' }
+    ]);
+
+    // ── Sub-Events ─────────────────────────────────────────────────────────
+    const [subEvents, setSubEvents] = useState([
+        { subEventName: '', description: '', price: '', maxParticipants: '' }
+    ]);
+
+    // ── Custom Fields ──────────────────────────────────────────────────────
     const [customFields, setCustomFields] = useState([]);
     const [newFieldLabel, setNewFieldLabel] = useState('');
     const [newFieldType, setNewFieldType] = useState('text');
     const [newFieldRequired, setNewFieldRequired] = useState(false);
 
-    const { register, control, handleSubmit, watch, trigger, reset, formState: { errors } } = useForm({
+    const {
+        register, control, handleSubmit, watch, trigger, reset,
+        formState: { errors }
+    } = useForm({
         defaultValues: {
-            categories: [{ name: "Entry" }, { name: "Food" }],
+            categories: [{ name: 'Entry' }, { name: 'Food' }],
             comforts: [],
-            totalTickets: "",
-            terms: "",
-            cancellationPolicy: "",
-            customFields: []
+            totalTickets: '',
+            terms: '',
+            cancellationPolicy: '',
         }
     });
 
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: "categories"
-    });
+    const { fields, append, remove } = useFieldArray({ control, name: 'categories' });
 
-    useEffect(() => {
-        if (id) {
-            loadEventData();
-        }
-    }, [id]);
-
-    useEffect(() => {
-        loadClubs();
-    }, []);
+    useEffect(() => { if (id) loadEventData(); }, [id]);
+    useEffect(() => { loadClubs(); }, []);
 
     const loadClubs = async () => {
-        try {
-            const clubsData = await clubService.getClubs();
-            setClubs(clubsData);
-        } catch (error) {
-            console.error("Failed to load clubs", error);
-        }
+        try { setClubs(await clubService.getClubs()); }
+        catch (e) { console.error('Failed to load clubs', e); }
     };
 
     const handleAddClub = async () => {
         if (!newClubName.trim()) return;
-
         try {
             await clubService.addClub(newClubName);
             await loadClubs();
             setNewClubName('');
             setShowAddClub(false);
-        } catch (error) {
-            console.error("Failed to add club", error);
-            alert("Failed to add club: " + error.message);
-        }
+        } catch (e) { alert('Failed to add club: ' + e.message); }
     };
 
     const loadEventData = async () => {
         try {
-            const eventData = await eventService.getEvent(id);
-            if (eventData) {
-                // Transform data if needed to match form structure
-                reset({
-                    ...eventData,
-                    date: eventData.date ? new Date(eventData.date).toISOString().split('T')[0] : '',
-                    registrationCloseDate: eventData.registrationCloseDate ? new Date(eventData.registrationCloseDate).toISOString().split('T')[0] : '',
-                    // Ensure arrays
-                    categories: eventData.categories?.map(c => ({ name: c })) || [{ name: "Entry" }],
-                    comforts: eventData.comforts || []
-                });
+            const ev = await eventService.getEvent(id);
+            if (!ev) return;
+            reset({
+                ...ev,
+                date: ev.date ? new Date(ev.date).toISOString().split('T')[0] : '',
+                registrationCloseDate: ev.registrationCloseDate
+                    ? new Date(ev.registrationCloseDate).toISOString().split('T')[0] : '',
+                categories: ev.categories?.map(c => ({ name: c })) || [{ name: 'Entry' }],
+                comforts: ev.comforts || [],
+            });
+            if (ev.eventType) setEventType(ev.eventType);
+            if (ev.status) setStatus(ev.status);
+            if (ev.modules) {
+                setEnableTicketModule(ev.modules.ticketModule ?? true);
+                setEnableTicketTiers(ev.modules.ticketTiers ?? false);
+                setEnablePricingCategories(ev.modules.pricingCategories ?? false);
+                setEnableCategories(ev.modules.categories ?? true);
+                setEnableSubEvents(ev.modules.subEvents ?? false);
+                setEnableCustomFields(ev.modules.customFields ?? false);
             }
-        } catch (error) {
-            console.error("Failed to load event for edit", error);
-        }
+            if (ev.ticketTiers?.length) { setEnableTicketTiers(true); setTicketTiers(ev.ticketTiers); }
+            if (ev.pricingCategories?.length) { setEnablePricingCategories(true); setPricingCategories(ev.pricingCategories); }
+            if (ev.subEvents?.length) { setEnableSubEvents(true); setSubEvents(ev.subEvents); }
+            if (ev.customFields?.length) { setEnableCustomFields(true); setCustomFields(ev.customFields); }
+        } catch (e) { console.error('Failed to load event', e); }
     };
 
     const validateAccessCode = async (code) => {
-        if (!code) {
-            setAccessCodeError('');
-            return true;
-        }
-
+        if (!code) { setAccessCodeError(''); return true; }
         try {
             const events = await eventService.getAllEvents();
-            const duplicate = events.find(e =>
+            const dup = events.find(e =>
                 e.accessCode &&
                 e.accessCode.trim().toUpperCase() === code.trim().toUpperCase() &&
-                e.id !== id // Exclude current event when editing
+                e.id !== id
             );
-
-            if (duplicate) {
-                setAccessCodeError(`Access code already used for "${duplicate.name}"`);
-                return false;
-            }
-            setAccessCodeError('');
-            return true;
-        } catch (error) {
-            console.error("Error validating access code:", error);
-            return true; // Allow on error to not block user
-        }
+            if (dup) { setAccessCodeError(`Code already used for "${dup.name}"`); return false; }
+            setAccessCodeError(''); return true;
+        } catch { return true; }
     };
 
     const nextStep = async () => {
@@ -143,68 +185,116 @@ export default function CreateEvent() {
         if (currentStep === 1) {
             valid = await trigger(['name', 'date', 'time', 'location', 'description']);
         } else if (currentStep === 2) {
-            valid = await trigger(['ticketPrice', 'accessCode', 'registrationCloseDate']);
-            if (valid) {
-                // Additional validation for access code uniqueness
-                const accessCodeValue = watch('accessCode');
-                const isAccessCodeValid = await validateAccessCode(accessCodeValue);
-                valid = isAccessCodeValid;
+            const fields = ['accessCode', 'registrationCloseDate'];
+            if (enableTicketModule && !enableTicketTiers && !enablePricingCategories) {
+                fields.push('ticketPrice');
             }
-        } else if (currentStep === 3) {
-            // Step 3 fields are optional, always allow progression
-            valid = true;
-        } else if (currentStep === 4) {
-            // Step 4 fields are optional
-            valid = true;
-        } else if (currentStep === 5) {
-            // Step 5 fields are optional
+            valid = await trigger(fields);
+            if (valid) valid = await validateAccessCode(watch('accessCode'));
+        } else {
             valid = true;
         }
-
-        if (valid && currentStep < 5) {
-            setCurrentStep(prev => prev + 1);
+        if (valid && currentStep < STEPS.length) {
+            setCurrentStep(p => p + 1);
             window.scrollTo(0, 0);
         }
     };
 
-    const prevStep = () => {
-        setCurrentStep(prev => prev - 1);
-        window.scrollTo(0, 0);
-    };
+    const prevStep = () => { setCurrentStep(p => p - 1); window.scrollTo(0, 0); };
 
     const onSubmit = async (data) => {
-        // Prevent submission if not on the last step
-        if (currentStep !== 5) return;
-
+        if (currentStep !== STEPS.length) return;
         setLoading(true);
         try {
+            const totalSeatsVal = data.totalTickets ? Number(data.totalTickets) : null;
+
             const eventData = {
                 ...data,
-                ticketPrice: Number(data.ticketPrice),
-                totalTickets: data.totalTickets ? Number(data.totalTickets) : null,
-                accessCode: data.accessCode,
-                // Ensure array formats
+                // ── Type & status ──
+                eventType,
+                status,
+                // ── Location (save both keys for full compatibility) ──
+                location: data.location,
+                venue: data.location,
+                // ── Poster ──
+                posterURL: data.posterURL?.trim() || null,
+                // ── Club: only for Rotaract ──
+                club: eventType === 'rotaract' ? (data.club || null) : null,
+                // ── Ticket config ──
+                ticketPrice: (enableTicketModule && !enableTicketTiers && !enablePricingCategories)
+                    ? (Number(data.ticketPrice) || 0)
+                    : null,
+                totalTickets: totalSeatsVal,
+                totalSeats: totalSeatsVal,   // FIX: Events.jsx uses totalSeats
+                ticketTiers: (enableTicketModule && enableTicketTiers)
+                    ? ticketTiers.filter(t => t.tierName.trim()).map(t => ({
+                        tierName: t.tierName.trim(),
+                        price: Number(t.price) || 0,
+                        maxQuantity: t.maxQuantity ? Number(t.maxQuantity) : null,
+                        description: t.description.trim() || null,
+                    })) : [],
+                pricingCategories: (enableTicketModule && enablePricingCategories)
+                    ? pricingCategories.filter(c => c.categoryName.trim()).map(c => ({
+                        categoryName: c.categoryName.trim(),
+                        price: Number(c.price) || 0,
+                    })) : [],
+                // ── Scan categories ──
+                categories: enableCategories
+                    ? data.categories.map(c => c.name).filter(Boolean)
+                    : ['Entry'],
+                // ── Sub-events ──
+                subEvents: enableSubEvents
+                    ? subEvents.filter(se => se.subEventName.trim()).map(se => ({
+                        subEventName: se.subEventName.trim(),
+                        description: se.description.trim() || null,
+                        price: Number(se.price) || 0,
+                        maxParticipants: se.maxParticipants ? Number(se.maxParticipants) : null,
+                    })) : [],
+                // ── Custom fields ──
+                customFields: enableCustomFields ? customFields : [],
+                // ── Comforts ──
                 comforts: data.comforts || [],
-                categories: data.categories.map(cat => cat.name).filter(Boolean),
-                customFields: customFields, // Add custom fields
-                // Add defaults if missing
-                club: data.club || "Rotaract Event",
-                terms: data.terms || "Standard event terms apply.",
-                cancellationPolicy: data.cancellationPolicy || "No cancellations allowed."
+                // ── Policies ──
+                terms: data.terms || 'Standard event terms apply.',
+                cancellationPolicy: data.cancellationPolicy || 'No cancellations allowed.',
+                // ── Module flags for edit-restore ──
+                modules: {
+                    ticketModule: enableTicketModule,
+                    ticketTiers: enableTicketTiers,
+                    pricingCategories: enablePricingCategories,
+                    categories: enableCategories,
+                    subEvents: enableSubEvents,
+                    customFields: enableCustomFields,
+                },
             };
 
-            if (id) {
-                await eventService.updateEvent(id, eventData);
-            } else {
-                await eventService.createEvent(eventData);
-            }
+            if (id) await eventService.updateEvent(id, eventData);
+            else await eventService.createEvent(eventData);
             navigate('/admin/dashboard');
-        } catch (error) {
-            console.error(error);
-            alert("Failed to save event: " + error.message);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save event: ' + e.message);
         }
         setLoading(false);
     };
+
+    // ── Tier helpers ────────────────────────────────────────────────────────
+    const updateTier = (i, f, v) => setTicketTiers(p => p.map((t, j) => j === i ? { ...t, [f]: v } : t));
+    const addTier = () => setTicketTiers(p => [...p, { tierName: '', price: '', maxQuantity: '', description: '' }]);
+    const removeTier = (i) => setTicketTiers(p => p.filter((_, j) => j !== i));
+
+    // ── Pricing Category helpers ────────────────────────────────────────────
+    const updatePC = (i, f, v) => setPricingCategories(p => p.map((c, j) => j === i ? { ...c, [f]: v } : c));
+    const addPC = () => setPricingCategories(p => [...p, { categoryName: '', price: '' }]);
+    const removePC = (i) => setPricingCategories(p => p.filter((_, j) => j !== i));
+
+    // ── Sub-Event helpers ───────────────────────────────────────────────────
+    const updateSE = (i, f, v) => setSubEvents(p => p.map((se, j) => j === i ? { ...se, [f]: v } : se));
+    const addSE = () => setSubEvents(p => [...p, { subEventName: '', description: '', price: '', maxParticipants: '' }]);
+    const removeSE = (i) => setSubEvents(p => p.filter((_, j) => j !== i));
+
+    const inp = 'w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border text-sm';
+    const lbl = 'block text-sm font-medium text-gray-700 mb-1';
 
     return (
         <div className="max-w-5xl mx-auto px-4 py-8">
@@ -217,24 +307,19 @@ export default function CreateEvent() {
             {/* Stepper */}
             <div className="mb-8">
                 <div className="flex items-center justify-between relative">
-                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 -z-10"></div>
-                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-indigo-600 -z-10 transition-all duration-300"
-                        style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}></div>
-
-                    {STEPS.map((step) => {
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10" />
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-indigo-600 -z-10 transition-all duration-300"
+                        style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }} />
+                    {STEPS.map(step => {
                         const Icon = step.icon;
                         const isActive = currentStep >= step.id;
                         const isCurrent = currentStep === step.id;
-
                         return (
                             <div key={step.id} className="flex flex-col items-center px-2 relative z-10">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-400'
-                                    }`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-400'}`}>
                                     {isActive && !isCurrent ? <Check className="w-6 h-6" /> : <Icon className="w-5 h-5" />}
                                 </div>
-                                <span className={`mt-2 text-xs font-medium ${isCurrent ? 'text-indigo-600' : 'text-gray-500'}`}>
-                                    {step.name}
-                                </span>
+                                <span className={`mt-2 text-xs font-medium ${isCurrent ? 'text-indigo-600' : 'text-gray-500'}`}>{step.name}</span>
                             </div>
                         );
                     })}
@@ -242,362 +327,534 @@ export default function CreateEvent() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit(onSubmit)} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+            <form onSubmit={handleSubmit(onSubmit)} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="p-8">
-                    {/* Step 1: Basics */}
+
+                    {/* ══ Step 1: Basics ═══════════════════════════════════════════════════ */}
                     {currentStep === 1 && (
                         <div className="space-y-6 animate-fadeIn">
                             <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Event Details</h2>
+
+                            {/* Event Type */}
+                            <div>
+                                <label className={lbl}>Event Type</label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-1">
+                                    {EVENT_TYPES.map(t => (
+                                        <button key={t.value} type="button"
+                                            onClick={() => setEventType(t.value)}
+                                            className={`p-3 rounded-xl border-2 text-left transition-all ${eventType === t.value ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                            <p className={`text-sm font-semibold ${eventType === t.value ? 'text-indigo-700' : 'text-gray-700'}`}>{t.label}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5 leading-tight">{t.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Event Status */}
+                            <div className="flex items-center gap-4">
+                                <label className={lbl + ' mb-0'}>Publish Status</label>
+                                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                                    {[{ v: 'active', l: '✅ Active (Live)' }, { v: 'draft', l: '📝 Draft (Hidden)' }].map(({ v, l }) => (
+                                        <button key={v} type="button" onClick={() => setStatus(v)}
+                                            className={`px-4 py-2 text-sm font-medium transition-colors ${status === v ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                                            {l}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-                                    <input {...register("name", { required: "Event name is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-colors p-2.5 border"
-                                        placeholder="e.g. Annual Charity Gala" />
+                                    <label className={lbl}>Event Name</label>
+                                    <input {...register('name', { required: 'Event name is required' })}
+                                        className={inp} placeholder="e.g. Annual Charity Gala" />
                                     {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                                    <input type="date" {...register("date", { required: "Date is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border" />
+                                    <label className={lbl}>Date</label>
+                                    <input type="date" {...register('date', { required: 'Date is required' })} className={inp} />
                                     {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date.message}</p>}
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Club</label>
-                                    <div className="flex gap-2">
-                                        <select {...register("club")}
-                                            className="flex-1 rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border">
-                                            <option value="">Select Club (Optional)</option>
-                                            {clubs.map(club => (
-                                                <option key={club.id} value={club.name}>{club.name}</option>
-                                            ))}
-                                        </select>
-                                        <button type="button" onClick={() => setShowAddClub(!showAddClub)}
-                                            className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
-                                            {showAddClub ? 'Cancel' : '+ Add'}
-                                        </button>
-                                    </div>
-                                    {showAddClub && (
-                                        <div className="mt-2 flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={newClubName}
-                                                onChange={(e) => setNewClubName(e.target.value)}
-                                                placeholder="Enter new club name"
-                                                className="flex-1 rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2 border text-sm"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        handleAddClub();
-                                                    }
-                                                }}
-                                            />
-                                            <button type="button" onClick={handleAddClub}
-                                                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
-                                                Save
+                                    <label className={lbl}>Time</label>
+                                    <input type="time" {...register('time', { required: 'Time is required' })} className={inp} />
+                                    {errors.time && <p className="text-red-500 text-xs mt-1">{errors.time.message}</p>}
+                                </div>
+
+                                {/* Club — ONLY for Rotaract events */}
+                                {eventType === 'rotaract' && (
+                                    <div>
+                                        <label className={lbl}>
+                                            Rotaract Club <span className="text-gray-400 font-normal text-xs">(Rotaract events only)</span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select {...register('club')} className={`flex-1 ${inp}`}>
+                                                <option value="">Select Club (Optional)</option>
+                                                {clubs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                            </select>
+                                            <button type="button" onClick={() => setShowAddClub(!showAddClub)}
+                                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                                                {showAddClub ? 'Cancel' : '+ Add'}
                                             </button>
                                         </div>
-                                    )}
+                                        {showAddClub && (
+                                            <div className="mt-2 flex gap-2">
+                                                <input type="text" value={newClubName}
+                                                    onChange={e => setNewClubName(e.target.value)}
+                                                    placeholder="Enter new club name"
+                                                    className={`flex-1 ${inp}`}
+                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddClub(); } }} />
+                                                <button type="button" onClick={handleAddClub}
+                                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
+                                                    Save
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className={eventType === 'rotaract' ? '' : 'md:col-span-1'}>
+                                    <label className={lbl}>Venue / Location</label>
+                                    <input {...register('location', { required: 'Location is required' })}
+                                        className={inp} placeholder="Full address of the venue" />
+                                    {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location.message}</p>}
+                                    <p className="text-xs text-gray-400 mt-1">Saved as both "location" and "venue" for display compatibility.</p>
                                 </div>
 
-
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-                                    <input type="time" {...register("time", { required: "Time is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border" />
+                                {/* Poster URL */}
+                                <div className={eventType === 'rotaract' ? 'md:col-span-2' : 'md:col-span-1'}>
+                                    <label className={lbl}>
+                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Event Poster URL</span>
+                                    </label>
+                                    <input {...register('posterURL')}
+                                        className={inp} placeholder="https://example.com/poster.jpg" />
+                                    <p className="text-xs text-gray-400 mt-1">Paste a direct image URL. Shown on the events listing and detail page.</p>
                                 </div>
 
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Location / Venue</label>
-                                    <input {...register("location", { required: "Location is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        placeholder="Full address of the venue" />
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                                    <textarea {...register("description", { required: "Description is required" })}
-                                        rows={4}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        placeholder="Describe what this event is about..." />
+                                    <label className={lbl}>Description</label>
+                                    <textarea {...register('description', { required: 'Description is required' })}
+                                        rows={4} className={inp} placeholder="Describe what this event is about..." />
+                                    {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description.message}</p>}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 2: Tickets */}
+                    {/* ══ Step 2: Tickets & Access ══════════════════════════════════════════ */}
                     {currentStep === 2 && (
                         <div className="space-y-6 animate-fadeIn">
                             <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Tickets & Access</h2>
+
+                            {/* Always-present: Access Code + Close Date */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Ticket Price (₹)</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-gray-500">₹</span>
-                                        </div>
-                                        <input type="number" {...register("ticketPrice", { required: "Price is required", min: 0 })}
-                                            className="w-full pl-7 rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border" />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Tickets</label>
-                                    <input type="number" {...register("totalTickets")}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        placeholder="Leave empty for unlimited" />
-                                    <p className="text-xs text-gray-500 mt-1">Maximum number of tickets available.</p>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Access Code</label>
-                                    <input {...register("accessCode", { required: "Access Code is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        placeholder="Unique code for this event" />
-                                    <p className="text-xs text-gray-500 mt-1">This code is required for users to view/register for the event manually.</p>
+                                    <label className={lbl}>Event Access Code</label>
+                                    <input {...register('accessCode', { required: 'Access Code is required' })}
+                                        className={inp} placeholder="Unique scanner code for this event" />
+                                    <p className="text-xs text-gray-500 mt-1">QR Scanner uses this code to unlock the event.</p>
                                     {errors.accessCode && <p className="text-red-500 text-xs mt-1">{errors.accessCode.message}</p>}
                                     {accessCodeError && <p className="text-red-500 text-xs mt-1">{accessCodeError}</p>}
                                 </div>
-
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Close Date</label>
-                                    <input type="date" {...register("registrationCloseDate", { required: "Deadline is required" })}
-                                        className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border" />
+                                    <label className={lbl}>Registration Close Date</label>
+                                    <input type="date" {...register('registrationCloseDate', { required: 'Deadline is required' })} className={inp} />
+                                    {errors.registrationCloseDate && <p className="text-red-500 text-xs mt-1">{errors.registrationCloseDate.message}</p>}
                                 </div>
+                                <div>
+                                    <label className={lbl}>Total Seats / Tickets</label>
+                                    <input type="number" {...register('totalTickets')} min="1"
+                                        className={inp} placeholder="Leave empty for unlimited" />
+                                    <p className="text-xs text-gray-400 mt-1">Saved as both <code>totalTickets</code> and <code>totalSeats</code> — used for "seats left" counter.</p>
+                                </div>
+                            </div>
+
+                            {/* ── Ticket Module Toggle ── */}
+                            <div className="pt-2">
+                                <ToggleSwitch enabled={enableTicketModule} onToggle={() => setEnableTicketModule(p => !p)}
+                                    label="Enable Ticket Module"
+                                    description="Turn off for free events or events handled outside this platform." />
+
+                                <ModuleSection enabled={enableTicketModule}>
+
+                                    {/* Simple single price (shown when neither Tiers nor Categories are on) */}
+                                    {!enableTicketTiers && !enablePricingCategories && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label className={lbl}>Base Ticket Price (₹)</label>
+                                                <div className="relative">
+                                                    <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 text-sm">₹</span>
+                                                    <input type="number" min="0"
+                                                        {...register('ticketPrice', { required: !enableTicketTiers && !enablePricingCategories ? 'Price is required' : false })}
+                                                        className={`${inp} pl-7`} placeholder="0" />
+                                                </div>
+                                                {errors.ticketPrice && <p className="text-red-500 text-xs mt-1">{errors.ticketPrice.message}</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ── Ticket Tiers sub-toggle ── */}
+                                    <ToggleSwitch enabled={enableTicketTiers} onToggle={() => setEnableTicketTiers(p => !p)}
+                                        label="Ticket Tiers"
+                                        description="Add multiple price tiers (e.g., Early Bird ₹200, Standard ₹400, VIP ₹800)." />
+
+                                    <ModuleSection enabled={enableTicketTiers}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                                <Layers className="w-4 h-4 text-indigo-500" /> Ticket Tiers
+                                            </p>
+                                            <button type="button" onClick={addTier}
+                                                className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 font-medium">
+                                                <Plus className="w-3.5 h-3.5" /> Add Tier
+                                            </button>
+                                        </div>
+                                        {ticketTiers.map((tier, i) => (
+                                            <div key={i} className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Tier {i + 1}</span>
+                                                    {ticketTiers.length > 1 && (
+                                                        <button type="button" onClick={() => removeTier(i)}
+                                                            className="text-red-400 hover:text-red-600 flex items-center gap-1 text-xs">
+                                                            <Trash2 className="w-3.5 h-3.5" /> Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className={lbl}>Tier Name *</label>
+                                                        <input type="text" value={tier.tierName}
+                                                            onChange={e => updateTier(i, 'tierName', e.target.value)}
+                                                            placeholder="e.g. Early Bird, VIP, Standard" className={inp} />
+                                                    </div>
+                                                    <div>
+                                                        <label className={lbl}>Price (₹) *</label>
+                                                        <div className="relative">
+                                                            <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 text-sm">₹</span>
+                                                            <input type="number" value={tier.price} min="0"
+                                                                onChange={e => updateTier(i, 'price', e.target.value)}
+                                                                placeholder="0" className={`${inp} pl-7`} />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className={lbl}>Max Quantity</label>
+                                                        <input type="number" value={tier.maxQuantity} min="1"
+                                                            onChange={e => updateTier(i, 'maxQuantity', e.target.value)}
+                                                            placeholder="Leave empty for unlimited" className={inp} />
+                                                    </div>
+                                                    <div>
+                                                        <label className={lbl}>Description</label>
+                                                        <input type="text" value={tier.description}
+                                                            onChange={e => updateTier(i, 'description', e.target.value)}
+                                                            placeholder="e.g. Includes lunch and T-shirt" className={inp} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </ModuleSection>
+
+                                    {/* ── Pricing Categories sub-toggle ── */}
+                                    <ToggleSwitch enabled={enablePricingCategories} onToggle={() => setEnablePricingCategories(p => !p)}
+                                        label="Pricing Categories"
+                                        description="Different prices for different attendee types (e.g., Kids ₹100, Adults ₹250, Seniors ₹150)." />
+
+                                    <ModuleSection enabled={enablePricingCategories}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                                <Users className="w-4 h-4 text-indigo-500" /> Pricing Categories
+                                            </p>
+                                            <button type="button" onClick={addPC}
+                                                className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 font-medium">
+                                                <Plus className="w-3.5 h-3.5" /> Add Category
+                                            </button>
+                                        </div>
+                                        {pricingCategories.map((pc, i) => (
+                                            <div key={i} className="flex gap-3 items-start">
+                                                <div className="flex-1">
+                                                    <label className={lbl}>Category Name *</label>
+                                                    <input type="text" value={pc.categoryName}
+                                                        onChange={e => updatePC(i, 'categoryName', e.target.value)}
+                                                        placeholder="e.g. Kids, Adults, Seniors" className={inp} />
+                                                </div>
+                                                <div className="w-36">
+                                                    <label className={lbl}>Price (₹) *</label>
+                                                    <div className="relative">
+                                                        <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 text-sm">₹</span>
+                                                        <input type="number" value={pc.price} min="0"
+                                                            onChange={e => updatePC(i, 'price', e.target.value)}
+                                                            placeholder="0" className={`${inp} pl-7`} />
+                                                    </div>
+                                                </div>
+                                                {pricingCategories.length > 1 && (
+                                                    <div className="flex items-end pb-0.5">
+                                                        <button type="button" onClick={() => removePC(i)}
+                                                            className="mt-6 text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </ModuleSection>
+                                </ModuleSection>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 3: Features */}
+                    {/* ══ Step 3: Features & Comforts ══════════════════════════════════════ */}
                     {currentStep === 3 && (
                         <div className="space-y-8 animate-fadeIn">
+
                             {/* Comforts */}
                             <div>
                                 <div className="flex justify-between items-center border-b pb-4 mb-4">
                                     <h2 className="text-xl font-bold text-gray-800">Event Comforts</h2>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                                    {COMFORTS_LIST.map((comfort) => (
-                                        <label key={comfort} className="inline-flex items-center p-3 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors">
-                                            <input type="checkbox" value={comfort} {...register("comforts")}
+                                    {COMFORTS_LIST.map(c => (
+                                        <label key={c} className="inline-flex items-center p-3 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors">
+                                            <input type="checkbox" value={c} {...register('comforts')}
                                                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 mr-3" />
-                                            <span className="text-sm text-gray-700 select-none">{comfort}</span>
+                                            <span className="text-sm text-gray-700 select-none">{c}</span>
                                         </label>
                                     ))}
                                 </div>
-
-                                {/* Custom Comforts */}
                                 {customComforts.length > 0 && (
-                                    <div className="mb-4">
-                                        <p className="text-sm font-medium text-gray-700 mb-2">Custom Comforts:</p>
-                                        <div className="space-y-2">
-                                            {customComforts.map((comfort, index) => (
-                                                <div key={index} className="flex items-center gap-2 p-2 bg-indigo-50 rounded-lg">
-                                                    <input type="checkbox" value={comfort} {...register("comforts")}
-                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
-                                                    <span className="text-sm text-gray-700 flex-1">{comfort}</span>
-                                                    <button type="button" onClick={() => setCustomComforts(prev => prev.filter((_, i) => i !== index))}
-                                                        className="text-red-500 hover:text-red-700 text-xs px-2 py-1">
-                                                        Remove
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
+                                    <div className="mb-4 space-y-2">
+                                        {customComforts.map((c, i) => (
+                                            <div key={i} className="flex items-center gap-2 p-2 bg-indigo-50 rounded-lg">
+                                                <input type="checkbox" value={c} {...register('comforts')}
+                                                    className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
+                                                <span className="text-sm text-gray-700 flex-1">{c}</span>
+                                                <button type="button" onClick={() => setCustomComforts(p => p.filter((_, j) => j !== i))}
+                                                    className="text-red-500 text-xs px-2">Remove</button>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
-
-                                {/* Add Custom Comfort */}
                                 <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={newComfort}
-                                        onChange={(e) => setNewComfort(e.target.value)}
-                                        placeholder="Add custom comfort (e.g., Live Music)"
-                                        className="flex-1 rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        onKeyDown={(e) => {
+                                    <input type="text" value={newComfort} onChange={e => setNewComfort(e.target.value)}
+                                        placeholder="Add custom comfort (e.g., Live Music)" className={inp}
+                                        onKeyDown={e => {
                                             if (e.key === 'Enter') {
                                                 e.preventDefault();
-                                                if (newComfort.trim()) {
-                                                    setCustomComforts(prev => [...prev, newComfort.trim()]);
-                                                    setNewComfort('');
-                                                }
+                                                if (newComfort.trim()) { setCustomComforts(p => [...p, newComfort.trim()]); setNewComfort(''); }
                                             }
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (newComfort.trim()) {
-                                                setCustomComforts(prev => [...prev, newComfort.trim()]);
-                                                setNewComfort('');
-                                            }
-                                        }}
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm"
-                                    >
-                                        Add Comfort
+                                        }} />
+                                    <button type="button"
+                                        onClick={() => { if (newComfort.trim()) { setCustomComforts(p => [...p, newComfort.trim()]); setNewComfort(''); } }}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm whitespace-nowrap">
+                                        Add
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Scan Categories */}
+                            {/* Scan Categories Module */}
                             <div>
-                                <div className="flex justify-between items-center border-b pb-4 mb-4">
-                                    <h2 className="text-xl font-bold text-gray-800">Scan Categories</h2>
-                                    <button type="button" onClick={() => append({ name: "" })}
-                                        className="text-sm bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-100 font-medium">
-                                        + Add Category
-                                    </button>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-4">Define checkpoints where attendees can scan their QR codes (e.g., "Entry", "Lunch", "Gift").</p>
-                                <div className="space-y-3">
-                                    {fields.map((field, index) => (
-                                        <div key={field.id} className="flex gap-4">
-                                            <input {...register(`categories.${index}.name`)}
-                                                placeholder="Category Name"
-                                                className="flex-1 rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border" />
-                                            <button type="button" onClick={() => remove(index)}
-                                                className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg">
-                                                Remove
-                                            </button>
+                                <ToggleSwitch enabled={enableCategories} onToggle={() => setEnableCategories(p => !p)}
+                                    label="Enable Scan Categories"
+                                    description='Define QR check-in checkpoints (e.g., "Entry", "Lunch", "Gift"). When off, only "Entry" is used.' />
+                                <ModuleSection enabled={enableCategories}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <Tag className="w-4 h-4 text-indigo-500" /> Scan Categories
+                                        </p>
+                                        <button type="button" onClick={() => append({ name: '' })}
+                                            className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 font-medium">
+                                            <Plus className="w-3.5 h-3.5" /> Add Category
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-3">Attendees scan their QR code at each checkpoint.</p>
+                                    <div className="space-y-2">
+                                        {fields.map((field, i) => (
+                                            <div key={field.id} className="flex gap-3">
+                                                <input {...register(`categories.${i}.name`)}
+                                                    placeholder="Category Name (e.g., Entry, Lunch, Gift)"
+                                                    className={inp} />
+                                                <button type="button" onClick={() => remove(i)}
+                                                    className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg flex-shrink-0">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ModuleSection>
+                            </div>
+
+                            {/* Sub-Events Module */}
+                            <div>
+                                <ToggleSwitch enabled={enableSubEvents} onToggle={() => setEnableSubEvents(p => !p)}
+                                    label="Enable Sub-Events"
+                                    description="Add multiple sessions or tracks under one event (e.g., Workshop A, Paper Presentation, Quiz)." />
+                                <ModuleSection enabled={enableSubEvents}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <GitBranch className="w-4 h-4 text-indigo-500" /> Sub-Events
+                                        </p>
+                                        <button type="button" onClick={addSE}
+                                            className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 font-medium">
+                                            <Plus className="w-3.5 h-3.5" /> Add Sub-Event
+                                        </button>
+                                    </div>
+                                    {subEvents.map((se, i) => (
+                                        <div key={i} className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide">Sub-Event {i + 1}</span>
+                                                {subEvents.length > 1 && (
+                                                    <button type="button" onClick={() => removeSE(i)}
+                                                        className="text-red-400 hover:text-red-600 flex items-center gap-1 text-xs">
+                                                        <Trash2 className="w-3.5 h-3.5" /> Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className={lbl}>Sub-Event Name *</label>
+                                                    <input type="text" value={se.subEventName}
+                                                        onChange={e => updateSE(i, 'subEventName', e.target.value)}
+                                                        placeholder="e.g. Workshop A, Quiz Round" className={inp} />
+                                                </div>
+                                                <div>
+                                                    <label className={lbl}>Price (₹)</label>
+                                                    <div className="relative">
+                                                        <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 text-sm">₹</span>
+                                                        <input type="number" value={se.price} min="0"
+                                                            onChange={e => updateSE(i, 'price', e.target.value)}
+                                                            placeholder="0 for free" className={`${inp} pl-7`} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className={lbl}>Max Participants</label>
+                                                    <input type="number" value={se.maxParticipants} min="1"
+                                                        onChange={e => updateSE(i, 'maxParticipants', e.target.value)}
+                                                        placeholder="Leave empty for unlimited" className={inp} />
+                                                </div>
+                                                <div>
+                                                    <label className={lbl}>Description</label>
+                                                    <input type="text" value={se.description}
+                                                        onChange={e => updateSE(i, 'description', e.target.value)}
+                                                        placeholder="Brief description of this session" className={inp} />
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
-                                </div>
+                                </ModuleSection>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 4: Policies */}
+                    {/* ══ Step 4: Policies ═════════════════════════════════════════════════ */}
                     {currentStep === 4 && (
                         <div className="space-y-6 animate-fadeIn">
                             <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Policies & Terms</h2>
-
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
-                                <textarea {...register("terms")}
-                                    rows={4}
-                                    className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
+                                <label className={lbl}>Terms & Conditions</label>
+                                <textarea {...register('terms')} rows={4} className={inp}
                                     placeholder="Enter event rules, regulations, and terms..." />
-                                <p className="text-xs text-gray-500 mt-1">Optional, can be added later.</p>
+                                <p className="text-xs text-gray-500 mt-1">Optional — can be added later.</p>
                             </div>
-
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation Policy</label>
-                                <textarea {...register("cancellationPolicy")}
-                                    rows={3}
-                                    className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
+                                <label className={lbl}>Cancellation Policy</label>
+                                <textarea {...register('cancellationPolicy')} rows={3} className={inp}
                                     placeholder="e.g. No refunds after booking..." />
                             </div>
-
-                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 flex items-start">
-                                <Info className="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
+                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 flex items-start gap-3">
+                                <Info className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
                                 <p className="text-sm text-yellow-700">
-                                    Please review all event details before publishing. Once published, core details like ticket price cannot be easily changed if tickets are sold.
+                                    Please review all event details before publishing. Once published, core details
+                                    like ticket price cannot be easily changed if tickets have been sold.
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 5: Custom Fields */}
+                    {/* ══ Step 5: Advanced (Custom Fields) ═════════════════════════════════ */}
                     {currentStep === 5 && (
                         <div className="space-y-6 animate-fadeIn">
-                            <h2 className="text-xl font-bold text-gray-800 border-b pb-4">Custom Registration Fields</h2>
-                            <p className="text-sm text-gray-600">Add custom fields that users will fill during event registration.</p>
+                            <h2 className="text-xl font-bold text-gray-800 border-b pb-4">Advanced Configuration</h2>
 
-                            {/* Existing Custom Fields */}
-                            {customFields.length > 0 && (
-                                <div className="space-y-3 mb-6">
-                                    <p className="text-sm font-medium text-gray-700">Current Custom Fields:</p>
-                                    {customFields.map((field, index) => (
-                                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
-                                            <div>
-                                                <p className="font-medium text-gray-800">{field.label}</p>
-                                                <p className="text-xs text-gray-500">
-                                                    Type: {field.type} | {field.required ? 'Required' : 'Optional'}
-                                                </p>
-                                            </div>
-                                            <button type="button" onClick={() => setCustomFields(prev => prev.filter((_, i) => i !== index))}
-                                                className="text-red-500 hover:text-red-700 text-sm px-3 py-1">
-                                                Remove
-                                            </button>
-                                        </div>
-                                    ))}
+                            <ToggleSwitch enabled={enableCustomFields} onToggle={() => setEnableCustomFields(p => !p)}
+                                label="Enable Custom Registration Fields"
+                                description="Add extra input fields for attendees during registration (e.g., T-Shirt Size, College Name)." />
+
+                            {!enableCustomFields && (
+                                <div className="text-center py-8 text-gray-400">
+                                    <Settings className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">Toggle on above to add custom registration questions.</p>
                                 </div>
                             )}
 
-                            {/* Add New Field */}
-                            <div className="border rounded-lg p-4 bg-gray-50">
-                                <h3 className="font-semibold text-gray-800 mb-4">Add New Field</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Field Label</label>
-                                        <input
-                                            type="text"
-                                            value={newFieldLabel}
-                                            onChange={(e) => setNewFieldLabel(e.target.value)}
-                                            placeholder="e.g., T-Shirt Size"
-                                            className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        />
+                            <ModuleSection enabled={enableCustomFields}>
+                                {customFields.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-medium text-gray-700">Current Fields:</p>
+                                        {customFields.map((field, i) => (
+                                            <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                                                <div>
+                                                    <p className="font-medium text-gray-800 text-sm">{field.label}</p>
+                                                    <p className="text-xs text-gray-500">Type: {field.type} | {field.required ? 'Required' : 'Optional'}</p>
+                                                </div>
+                                                <button type="button" onClick={() => setCustomFields(p => p.filter((_, j) => j !== i))}
+                                                    className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Field Type</label>
-                                        <select
-                                            value={newFieldType}
-                                            onChange={(e) => setNewFieldType(e.target.value)}
-                                            className="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm p-2.5 border"
-                                        >
-                                            <option value="text">Text</option>
-                                            <option value="number">Number</option>
-                                            <option value="email">Email</option>
-                                            <option value="date">Date</option>
-                                            <option value="checkbox">Checkbox</option>
-                                            <option value="select">Dropdown</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={newFieldRequired}
-                                            onChange={(e) => setNewFieldRequired(e.target.checked)}
-                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 mr-2"
-                                        />
-                                        <label className="text-sm text-gray-700">Required Field</label>
-                                    </div>
-                                    <div className="flex items-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (newFieldLabel.trim()) {
-                                                    setCustomFields(prev => [...prev, {
-                                                        label: newFieldLabel.trim(),
-                                                        type: newFieldType,
-                                                        required: newFieldRequired
-                                                    }]);
-                                                    setNewFieldLabel('');
-                                                    setNewFieldType('text');
-                                                    setNewFieldRequired(false);
-                                                }
-                                            }}
-                                            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
-                                        >
-                                            Add Field
-                                        </button>
+                                )}
+
+                                <div className="border rounded-xl p-4 bg-gray-50">
+                                    <h3 className="font-semibold text-gray-800 mb-4 text-sm">Add New Field</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className={lbl}>Field Label</label>
+                                            <input type="text" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)}
+                                                placeholder="e.g., T-Shirt Size" className={inp} />
+                                        </div>
+                                        <div>
+                                            <label className={lbl}>Field Type</label>
+                                            <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} className={inp}>
+                                                <option value="text">Text</option>
+                                                <option value="number">Number</option>
+                                                <option value="email">Email</option>
+                                                <option value="date">Date</option>
+                                                <option value="checkbox">Checkbox</option>
+                                                <option value="select">Dropdown</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input type="checkbox" id="fieldReq" checked={newFieldRequired}
+                                                onChange={e => setNewFieldRequired(e.target.checked)}
+                                                className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
+                                            <label htmlFor="fieldReq" className="text-sm text-gray-700">Required field</label>
+                                        </div>
+                                        <div className="flex items-end">
+                                            <button type="button"
+                                                onClick={() => {
+                                                    if (newFieldLabel.trim()) {
+                                                        setCustomFields(p => [...p, { label: newFieldLabel.trim(), type: newFieldType, required: newFieldRequired }]);
+                                                        setNewFieldLabel(''); setNewFieldType('text'); setNewFieldRequired(false);
+                                                    }
+                                                }}
+                                                className="w-full px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm flex items-center justify-center gap-2">
+                                                <Plus className="w-4 h-4" /> Add Field
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </ModuleSection>
                         </div>
                     )}
                 </div>
 
-                {/* Footer Actions */}
+                {/* Footer */}
                 <div className="bg-gray-50 px-8 py-5 flex justify-between items-center border-t border-gray-100">
                     <div className="flex gap-3">
                         <button type="button" onClick={prevStep} disabled={currentStep === 1}
-                            className={`flex items-center px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentStep === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}>
-                            <ChevronLeft className="w-4 h-4 mr-2" />
-                            Back
+                            className={`flex items-center px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentStep === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200'}`}>
+                            <ChevronLeft className="w-4 h-4 mr-2" /> Back
                         </button>
                         {id && (
                             <button type="button" onClick={() => navigate('/admin/dashboard')}
@@ -607,15 +864,14 @@ export default function CreateEvent() {
                         )}
                     </div>
 
-                    {currentStep < 5 ? (
+                    {currentStep < STEPS.length ? (
                         <button type="button" onClick={nextStep}
-                            className="flex items-center bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-100 transition-all shadow-md hover:shadow-lg">
-                            Next Step
-                            <ChevronRight className="w-4 h-4 ml-2" />
+                            className="flex items-center bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all">
+                            Next Step <ChevronRight className="w-4 h-4 ml-2" />
                         </button>
                     ) : (
                         <button type="submit" disabled={loading}
-                            className={`flex items-center bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 focus:ring-4 focus:ring-green-100 transition-all shadow-md hover:shadow-lg ${loading ? 'opacity-70 cursor-wait' : ''}`}>
+                            className={`flex items-center bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
                             {loading ? 'Saving...' : (id ? 'Update Event' : 'Create Event')}
                             {!loading && <Check className="w-4 h-4 ml-2" />}
                         </button>
