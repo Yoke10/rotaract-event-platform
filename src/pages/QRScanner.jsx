@@ -27,6 +27,12 @@ export default function QRScanner() {
         selectedCategoryRef.current = selectedCategory;
     }, [selectedCategory]);
 
+    // ── activeEvent Ref (prevents stale closure in scanner callback) ────
+    const activeEventRef = useRef(null);
+    useEffect(() => {
+        activeEventRef.current = activeEvent;
+    }, [activeEvent]);
+
     // ── Camera / Scanner State ─────────────────────────────────────────
     const [cameraState, setCameraState] = useState('idle'); // idle | requesting | active | error | denied
     const [cameraError, setCameraError] = useState('');
@@ -229,15 +235,24 @@ export default function QRScanner() {
             // ── Layer 2: Database Lookup & Event Ownership ────────────────
             const ticket = await eventService.getTicketById(trimmed);
 
+            // Use refs to read live values — the scanner callback is a stale closure
+            const liveEvent = activeEventRef.current;
             const tId = ticket ? String(ticket.eventId || '').trim() : '';
-            const aId = activeEvent ? String(activeEvent.id || '').trim() : '';
+            const aId = liveEvent ? String(liveEvent.id || '').trim() : '';
+
+            console.log(`[QR DEBUG] Lookup: ticket=${!!ticket} | TicketEvent='${tId}' | ActiveEvent='${aId}'`);
 
             // Check existence AND event ownership immediately
-            if (!ticket || (activeEvent && tId !== aId)) {
-                if (ticket) {
-                    console.log(`[QR DEBUG] Cross-Event Scan Rejected. TicketEvent: '${tId}' | ActiveEvent: '${aId}'`);
+            // IMPORTANT: use liveEvent (not stale activeEvent state) so this is never skipped
+            if (!ticket || !liveEvent || tId !== aId) {
+                let debugInfo = '';
+                if (ticket && liveEvent) {
+                    // Ticket found but wrong event — show IDs for transparency
+                    debugInfo = `\n(Ticket Event ID: ${tId} | Scanner Event ID: ${aId})`;
+                } else if (!liveEvent) {
+                    debugInfo = '\n(No active event in scanner — please re-enter access code)';
                 }
-                throw new Error('Invalid QR Code — This ticket does not belong to this event.');
+                throw new Error('Invalid QR Code — This ticket does not belong to this event.' + debugInfo);
             }
 
             // ── Layer 3: Ticket Status Check ────────────────────────────
