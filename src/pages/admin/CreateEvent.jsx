@@ -218,6 +218,7 @@ export default function CreateEvent() {
                 venue: data.location,
                 // ── Poster ──
                 posterURL: data.posterURL?.trim() || null,
+                landscapePosterURL: data.landscapePosterURL?.trim() || null,
                 // ── Club: only for Rotaract ──
                 club: eventType === 'rotaract' ? (data.club || null) : null,
                 // ── Ticket config ──
@@ -424,14 +425,24 @@ export default function CreateEvent() {
                                     <p className="text-xs text-gray-400 mt-1">Saved as both "location" and "venue" for display compatibility.</p>
                                 </div>
 
-                                {/* Poster URL */}
+                                {/* Poster URL — A4 portrait */}
                                 <div className={eventType === 'rotaract' ? 'md:col-span-2' : 'md:col-span-1'}>
                                     <label className={lbl}>
-                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Event Poster URL</span>
+                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Event Poster (A4 Portrait)</span>
                                     </label>
                                     <input {...register('posterURL')}
-                                        className={inp} placeholder="https://example.com/poster.jpg" />
-                                    <p className="text-xs text-gray-400 mt-1">Paste a direct image URL. Shown on the events listing and detail page.</p>
+                                        className={inp} placeholder="https://example.com/poster.webp" />
+                                    <p className="text-xs text-gray-400 mt-1">A4 portrait poster in WebP format. Shown on event cards and listing page.</p>
+                                </div>
+
+                                {/* Landscape Banner URL */}
+                                <div className="md:col-span-2">
+                                    <label className={lbl}>
+                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Landscape Banner (16:9)</span>
+                                    </label>
+                                    <input {...register('landscapePosterURL')}
+                                        className={inp} placeholder="https://example.com/banner.webp" />
+                                    <p className="text-xs text-gray-400 mt-1">Wide landscape image (16:9) in WebP format. Shown as the header banner on the event detail page.</p>
                                 </div>
 
                                 <div className="md:col-span-2">

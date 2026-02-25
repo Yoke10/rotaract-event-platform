@@ -20,6 +20,7 @@ import BookingSuccess from './pages/BookingSuccess';
 import MyTickets from './pages/MyTickets';
 import QRScanner from './pages/QRScanner';
 import ParticipantDetails from './pages/ParticipantDetails';
+import Profile from './pages/Profile';
 
 // Layout component to include Navbar
 const Layout = () => {
@@ -68,6 +69,11 @@ function App() {
             <Route path="/my-tickets" element={
               <PrivateRoute>
                 <MyTickets />
+              </PrivateRoute>
+            } />
+            <Route path="/profile" element={
+              <PrivateRoute>
+                <Profile />
               </PrivateRoute>
             } />
           </Route>

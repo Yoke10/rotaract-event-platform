@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { eventService } from '../services/eventService';
-import { Calendar, MapPin, Ticket, ArrowRight, Loader2 } from 'lucide-react';
+import { Calendar, Loader2, Search } from 'lucide-react';
+import EventCard from '../components/EventCard';
 
 export default function Events() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [query, setQuery] = useState('');
 
-    useEffect(() => {
-        loadEvents();
-    }, []);
+    useEffect(() => { loadEvents(); }, []);
 
     const loadEvents = async () => {
         try {
             const data = await eventService.getAllEvents();
-            setEvents(data);
+            setEvents(data.filter(e => e.status === 'active'));
         } catch (error) {
             console.error(error);
         } finally {
@@ -22,98 +21,64 @@ export default function Events() {
         }
     };
 
+    const filtered = events.filter(e =>
+        !query ||
+        e.name?.toLowerCase().includes(query.toLowerCase()) ||
+        (e.venue || e.location || '').toLowerCase().includes(query.toLowerCase())
+    );
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-screen">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#400763' }} />
+                <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#680b56' }} />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
-            {/* Header */}
-            <div className="relative overflow-hidden bg-white border-b border-gray-100">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 mt-10">
-                    <div className="text-center relative z-10">
-                        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-4 gradient-text">
+        <div className="min-h-screen bg-white">
+
+            <div className="pt-20 mt-5 pb-6 px-4 sm:px-6 border-b border-gray-100">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    {/* Title */}
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold" style={{ color: '#1a1a1a' }}>
                             All Events
                         </h1>
-                        <p className="text-xl max-w-2xl mx-auto" style={{ color: '#4a4a4a' }}>
-                            Discover and book tickets for upcoming Rotaract events.
-                            Experience excellence in every moment.
+                        <p className="text-sm mt-0.5" style={{ color: '#6b6b6b' }}>
+                            {filtered.length} upcoming event{filtered.length !== 1 ? 's' : ''}
                         </p>
+                    </div>
+
+                    {/* Search bar */}
+                    <div className="relative w-full sm:w-72">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#999' }} />
+                        <input
+                            type="search"
+                            placeholder="Search events or venues…"
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            className="glass-input pl-10 pr-4 py-2.5 text-sm rounded-full w-full"
+                            aria-label="Search events"
+                        />
                     </div>
                 </div>
             </div>
 
-            {/* Events Grid */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                {events.length === 0 ? (
-                    <div className="text-center py-16">
-                        <Calendar className="w-16 h-16 mx-auto mb-4" style={{ color: '#999999' }} />
-                        <h3 className="text-xl font-semibold mb-2" style={{ color: '#4a4a4a' }}>No Events Available</h3>
-                        <p style={{ color: '#6b6b6b' }}>Check back soon for upcoming events!</p>
+            {/* Grid */}
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+                {filtered.length === 0 ? (
+                    <div className="text-center py-20">
+                        <Calendar className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: '#400763' }} />
+                        <p className="font-semibold" style={{ color: '#4a4a4a' }}>No events found</p>
+                        <p className="text-sm mt-1" style={{ color: '#6b6b6b' }}>
+                            {query ? 'Try a different search term.' : 'Check back soon!'}
+                        </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {events.map((event) => (
-                            <div key={event.id} className="glass-card group">
-                                {/* Event Image */}
-                                {event.posterURL && (
-                                    <div className="relative h-48 mb-4 rounded-lg overflow-hidden">
-                                        <img
-                                            src={event.posterURL}
-                                            alt={event.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
-                                        <div className="absolute top-3 right-3">
-                                            <span className="badge-primary">
-                                                ₹{event.ticketPrice}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Event Details */}
-                                <h3 className="text-2xl font-bold mb-3 gradient-text">
-                                    {event.name}
-                                </h3>
-
-                                <p className="mb-4 line-clamp-2" style={{ color: '#6b6b6b' }}>
-                                    {event.description}
-                                </p>
-
-                                <div className="space-y-2 mb-4">
-                                    <div className="flex items-center" style={{ color: '#4a4a4a' }}>
-                                        <Calendar className="w-4 h-4 mr-2" style={{ color: '#400763' }} />
-                                        <span className="text-sm">
-                                            {new Date(event.date).toLocaleDateString('en-US', {
-                                                weekday: 'short',
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: 'numeric'
-                                            })}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center" style={{ color: '#4a4a4a' }}>
-                                        <MapPin className="w-4 h-4 mr-2" style={{ color: '#ed0775' }} />
-                                        <span className="text-sm">{event.venue || event.location}</span>
-                                    </div>
-                                    <div className="flex items-center" style={{ color: '#4a4a4a' }}>
-                                        <Ticket className="w-4 h-4 mr-2" style={{ color: '#680b56' }} />
-                                        <span className="text-sm">{(() => { const seats = event.totalSeats ?? event.totalTickets; if (!seats) return 'Unlimited'; return (seats - (event.ticketsSold || 0)) + ' seats left'; })()}</span>
-                                    </div>
-                                </div>
-
-                                <Link
-                                    to={`/event/${event.id}`}
-                                    className="btn-primary w-full flex items-center justify-center"
-                                >
-                                    View Details
-                                    <ArrowRight className="w-4 h-4 ml-2" />
-                                </Link>
-                            </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                        {filtered.map(event => (
+                            <EventCard key={event.id} event={event} />
                         ))}
                     </div>
                 )}
@@ -121,5 +86,3 @@ export default function Events() {
         </div>
     );
 }
-
-

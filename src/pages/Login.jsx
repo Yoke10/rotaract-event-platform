@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Loader2, LogIn } from 'lucide-react';
 
@@ -9,7 +9,11 @@ export default function Login() {
     const { login, googleLogin } = useAuth();
     const [error, setError] = useState('');
     const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(false);
+
+    // Where to go after login — either where user was trying to go, or home
+    const from = location.state?.from?.pathname || '/';
 
     const onSubmit = async (data) => {
         try {
@@ -19,11 +23,11 @@ export default function Login() {
             console.log("Login successful. Detected role:", role);
 
             if (role === 'admin') {
-                console.log("Redirecting to Admin Dashboard");
+                console.log('Redirecting to Admin Dashboard');
                 navigate('/admin/dashboard');
             } else {
-                console.log("Redirecting to Home");
-                navigate('/');
+                console.log('Redirecting to:', from);
+                navigate(from, { replace: true });
             }
         } catch (err) {
             setError('Failed to log in: ' + err.message);
@@ -120,7 +124,7 @@ export default function Login() {
                                     if (role === 'admin') {
                                         navigate('/admin/dashboard');
                                     } else {
-                                        navigate('/');
+                                        navigate(from, { replace: true });
                                     }
                                 } catch (err) {
                                     setError('Failed to log in with Google: ' + err.message);

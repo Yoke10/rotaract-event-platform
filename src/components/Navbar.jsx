@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Menu, X, LogOut, User, LayoutDashboard } from 'lucide-react';
+import { Menu, X, LogOut, User } from 'lucide-react';
 
 export default function Navbar() {
     const { currentUser, logout, userRole } = useAuth();
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
-    const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const handleLogout = async () => {
         await logout();
@@ -62,47 +61,14 @@ export default function Navbar() {
                         </Link>
 
                         {currentUser ? (
-                            <div className="relative">
-                                <button
-                                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                                    className="flex items-center space-x-2 px-4 py-2 rounded-full border-2 transition-all hover:shadow-md"
-                                    style={{ borderColor: '#400763', color: '#400763' }}
-                                >
-                                    <User className="w-5 h-5" />
-                                    <span className="font-medium">{currentUser.email?.split('@')[0]}</span>
-                                </button>
-
-                                {dropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2">
-                                        {userRole === 'admin' && (
-                                            <Link
-                                                to="/admin/dashboard"
-                                                className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors"
-                                                style={{ color: '#4a4a4a' }}
-                                            >
-                                                <LayoutDashboard className="w-5 h-5 mr-3" style={{ color: '#400763' }} />
-                                                <span>Admin Dashboard</span>
-                                            </Link>
-                                        )}
-                                        <Link
-                                            to="/my-tickets"
-                                            className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors"
-                                            style={{ color: '#400763' }}
-                                            onClick={() => setDropdownOpen(false)}
-                                        >
-                                            <User className="w-5 h-5 mr-3" />
-                                            <span>My Tickets</span>
-                                        </Link>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition-colors text-red-600"
-                                        >
-                                            <LogOut className="w-5 h-5 mr-3" />
-                                            <span>Logout</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                            <Link
+                                to="/profile"
+                                className="w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all hover:shadow-md"
+                                style={{ borderColor: '#400763', color: '#400763', backgroundColor: 'rgba(64,7,99,0.05)' }}
+                                title="My Profile"
+                            >
+                                <User className="w-5 h-5" />
+                            </Link>
                         ) : (
                             <div className="flex items-center space-x-3">
                                 <Link
