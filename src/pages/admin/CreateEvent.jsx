@@ -79,6 +79,56 @@ export default function CreateEvent() {
     const [enableSubEvents, setEnableSubEvents] = useState(false);
     const [enableCustomFields, setEnableCustomFields] = useState(false);
 
+    // ── Image file state ──────────────────────────────────────────
+    const [posterFile, setPosterFile] = useState(null);
+    const [posterPreview, setPosterPreview] = useState('');
+    const [bannerFile, setBannerFile] = useState(null);
+    const [bannerPreview, setBannerPreview] = useState('');
+    const [uploadProgress, setUploadProgress] = useState('');
+
+    const handleImageChange = (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const allowed = ['image/webp', 'image/jpeg', 'image/png'];
+        if (!allowed.includes(file.type)) {
+            alert('Only WebP, JPG or PNG files are accepted.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            alert('File size must be under 10 MB.');
+            return;
+        }
+        const url = URL.createObjectURL(file);
+        if (type === 'poster') { setPosterFile(file); setPosterPreview(url); }
+        else { setBannerFile(file); setBannerPreview(url); }
+    };
+
+    // Compress and convert image file to Base64 using Canvas API
+    const compressToBase64 = (file, maxW, maxH, quality = 0.75) => {
+        return new Promise((resolve, reject) => {
+            const img = new window.Image();
+            const objectUrl = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                let { width, height } = img;
+                // Scale down to fit within maxW x maxH while keeping aspect ratio
+                if (width > maxW || height > maxH) {
+                    const ratio = Math.min(maxW / width, maxH / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/webp', quality));
+            };
+            img.onerror = reject;
+            img.src = objectUrl;
+        });
+    };
+
     // ── Comforts ───────────────────────────────────────────────────────────
     const [customComforts, setCustomComforts] = useState([]);
     const [newComfort, setNewComfort] = useState('');
@@ -149,6 +199,9 @@ export default function CreateEvent() {
                 categories: ev.categories?.map(c => ({ name: c })) || [{ name: 'Entry' }],
                 comforts: ev.comforts || [],
             });
+            // Restore image previews from existing URLs
+            if (ev.posterURL) setPosterPreview(ev.posterURL);
+            if (ev.landscapePosterURL) setBannerPreview(ev.landscapePosterURL);
             if (ev.eventType) setEventType(ev.eventType);
             if (ev.status) setStatus(ev.status);
             if (ev.modules) {
@@ -203,10 +256,28 @@ export default function CreateEvent() {
     const prevStep = () => { setCurrentStep(p => p - 1); window.scrollTo(0, 0); };
 
     const onSubmit = async (data) => {
-        if (currentStep !== STEPS.length) return;
+        // In create mode: only submit on the final step.
+        // In edit mode: allow saving from any step.
+        if (!id && currentStep !== STEPS.length) return;
         setLoading(true);
         try {
             const totalSeatsVal = data.totalTickets ? Number(data.totalTickets) : null;
+
+            // ── Compress images to Base64 and store in Firestore directly ──
+            let finalPosterURL = posterPreview && !posterFile ? posterPreview : null;
+            let finalBannerURL = bannerPreview && !bannerFile ? bannerPreview : null;
+
+            if (posterFile) {
+                setUploadProgress('Compressing poster...');
+                // Portrait: max 800x1100px
+                finalPosterURL = await compressToBase64(posterFile, 800, 1100, 0.75);
+            }
+            if (bannerFile) {
+                setUploadProgress('Compressing banner...');
+                // Landscape: max 1280x720px
+                finalBannerURL = await compressToBase64(bannerFile, 1280, 720, 0.75);
+            }
+            setUploadProgress('');
 
             const eventData = {
                 ...data,
@@ -216,9 +287,9 @@ export default function CreateEvent() {
                 // ── Location (save both keys for full compatibility) ──
                 location: data.location,
                 venue: data.location,
-                // ── Poster ──
-                posterURL: data.posterURL?.trim() || null,
-                landscapePosterURL: data.landscapePosterURL?.trim() || null,
+                // ── Poster (use uploaded URLs, not form fields) ──
+                posterURL: finalPosterURL,
+                landscapePosterURL: finalBannerURL,
                 // ── Club: only for Rotaract ──
                 club: eventType === 'rotaract' ? (data.club || null) : null,
                 // ── Ticket config ──
@@ -425,24 +496,62 @@ export default function CreateEvent() {
                                     <p className="text-xs text-gray-400 mt-1">Saved as both "location" and "venue" for display compatibility.</p>
                                 </div>
 
-                                {/* Poster URL — A4 portrait */}
+                                {/* Poster — file upload */}
                                 <div className={eventType === 'rotaract' ? 'md:col-span-2' : 'md:col-span-1'}>
                                     <label className={lbl}>
-                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Event Poster (A4 Portrait)</span>
+                                        <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Event Poster (Portrait, A4)</span>
                                     </label>
-                                    <input {...register('posterURL')}
-                                        className={inp} placeholder="https://example.com/poster.webp" />
-                                    <p className="text-xs text-gray-400 mt-1">A4 portrait poster in WebP format. Shown on event cards and listing page.</p>
+                                    <div className="flex items-start gap-4">
+                                        {/* Preview */}
+                                        {posterPreview && (
+                                            <img src={posterPreview} alt="Poster preview"
+                                                className="w-16 h-20 object-cover rounded-lg border border-gray-200 shrink-0" />
+                                        )}
+                                        <div className="flex-1">
+                                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
+                                                <div className="flex flex-col items-center gap-1 text-gray-400">
+                                                    <Image className="w-6 h-6" />
+                                                    <span className="text-xs font-medium">
+                                                        {posterFile ? posterFile.name : 'Click to upload poster'}
+                                                    </span>
+                                                    <span className="text-xs">WebP / JPG / PNG · max 5 MB</span>
+                                                </div>
+                                                <input type="file" accept="image/webp,image/jpeg,image/png"
+                                                    className="hidden"
+                                                    onChange={e => handleImageChange(e, 'poster')} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">Portrait poster (A4 ratio). Shown on event cards and listing.</p>
                                 </div>
 
-                                {/* Landscape Banner URL */}
+                                {/* Landscape Banner — file upload */}
                                 <div className="md:col-span-2">
                                     <label className={lbl}>
                                         <span className="flex items-center gap-1"><Image className="w-4 h-4 inline" /> Landscape Banner (16:9)</span>
                                     </label>
-                                    <input {...register('landscapePosterURL')}
-                                        className={inp} placeholder="https://example.com/banner.webp" />
-                                    <p className="text-xs text-gray-400 mt-1">Wide landscape image (16:9) in WebP format. Shown as the header banner on the event detail page.</p>
+                                    <div className="flex items-start gap-4">
+                                        {/* Preview */}
+                                        {bannerPreview && (
+                                            <img src={bannerPreview} alt="Banner preview"
+                                                className="w-28 h-16 object-cover rounded-lg border border-gray-200 shrink-0" />
+                                        )}
+                                        <div className="flex-1">
+                                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
+                                                <div className="flex flex-col items-center gap-1 text-gray-400">
+                                                    <Image className="w-6 h-6" />
+                                                    <span className="text-xs font-medium">
+                                                        {bannerFile ? bannerFile.name : 'Click to upload banner'}
+                                                    </span>
+                                                    <span className="text-xs">WebP / JPG / PNG · max 5 MB</span>
+                                                </div>
+                                                <input type="file" accept="image/webp,image/jpeg,image/png"
+                                                    className="hidden"
+                                                    onChange={e => handleImageChange(e, 'banner')} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">Wide banner (16:9 ratio). Header image on event detail page.</p>
                                 </div>
 
                                 <div className="md:col-span-2">
@@ -862,16 +971,24 @@ export default function CreateEvent() {
 
                 {/* Footer */}
                 <div className="bg-gray-50 px-8 py-5 flex justify-between items-center border-t border-gray-100">
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-center">
                         <button type="button" onClick={prevStep} disabled={currentStep === 1}
                             className={`flex items-center px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentStep === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200'}`}>
                             <ChevronLeft className="w-4 h-4 mr-2" /> Back
                         </button>
                         {id && (
-                            <button type="button" onClick={() => navigate('/admin/dashboard')}
-                                className="flex items-center px-5 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
-                                Cancel Edit
-                            </button>
+                            <>
+                                <button type="button" onClick={() => navigate('/admin/dashboard')}
+                                    className="flex items-center px-5 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                                    Cancel Edit
+                                </button>
+                                {/* Save button right next to Cancel when editing */}
+                                <button type="submit" disabled={loading}
+                                    className={`flex items-center bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
+                                    {loading ? 'Saving...' : 'Update Event'}
+                                    {!loading && <Check className="w-4 h-4 ml-2" />}
+                                </button>
+                            </>
                         )}
                     </div>
 
@@ -880,15 +997,25 @@ export default function CreateEvent() {
                             className="flex items-center bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all">
                             Next Step <ChevronRight className="w-4 h-4 ml-2" />
                         </button>
-                    ) : (
+                    ) : !id ? (
                         <button type="submit" disabled={loading}
                             className={`flex items-center bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
-                            {loading ? 'Saving...' : (id ? 'Update Event' : 'Create Event')}
+                            {loading ? 'Saving...' : 'Create Event'}
                             {!loading && <Check className="w-4 h-4 ml-2" />}
                         </button>
-                    )}
+                    ) : null}
                 </div>
             </form>
+
+            {/* Upload progress overlay */}
+            {loading && uploadProgress && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="text-sm font-semibold text-gray-700">{uploadProgress}</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

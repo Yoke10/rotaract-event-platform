@@ -22,59 +22,58 @@ import QRScanner from './pages/QRScanner';
 import ParticipantDetails from './pages/ParticipantDetails';
 import Profile from './pages/Profile';
 
-// Layout component to include Navbar
-const Layout = () => {
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Navbar />
-      <div className="flex-grow">
-        <Outlet />
-      </div>
-      <Footer />
+// Full layout with navbar + footer (all public pages)
+const PublicLayout = () => (
+  <div className="min-h-screen bg-gray-50 flex flex-col">
+    <Navbar />
+    <div className="flex-grow">
+      <Outlet />
     </div>
-  );
-};
+    <Footer />
+  </div>
+);
+
+// Bare layout — no navbar, no footer (login / signup)
+const AuthLayout = () => (
+  <div className="min-h-screen">
+    <Outlet />
+  </div>
+);
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Standalone Admin Login */}
-          <Route path="/admin-login" element={<AdminLogin />} />
-
-          {/* User Layout Routes */}
-          <Route element={<Layout />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/events" element={<Events />} />
+          {/* ── Auth pages — no navbar/footer ── */}
+          <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+          </Route>
+
+          {/* ── Standalone Admin Login (already bare) ── */}
+          <Route path="/admin-login" element={<AdminLogin />} />
+
+          {/* ── Public pages with navbar + footer ── */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/events" element={<Events />} />
             <Route path="/event/:id" element={<EventDetails />} />
             <Route path="/scanner" element={<QRScanner />} />
             <Route path="/booking/:id" element={
-              <PrivateRoute>
-                <Booking />
-              </PrivateRoute>
+              <PrivateRoute><Booking /></PrivateRoute>
             } />
             <Route path="/booking-success" element={
-              <PrivateRoute>
-                <BookingSuccess />
-              </PrivateRoute>
+              <PrivateRoute><BookingSuccess /></PrivateRoute>
             } />
             <Route path="/participant-details" element={
-              <PrivateRoute>
-                <ParticipantDetails />
-              </PrivateRoute>
+              <PrivateRoute><ParticipantDetails /></PrivateRoute>
             } />
             <Route path="/my-tickets" element={
-              <PrivateRoute>
-                <MyTickets />
-              </PrivateRoute>
+              <PrivateRoute><MyTickets /></PrivateRoute>
             } />
             <Route path="/profile" element={
-              <PrivateRoute>
-                <Profile />
-              </PrivateRoute>
+              <PrivateRoute><Profile /></PrivateRoute>
             } />
           </Route>
 

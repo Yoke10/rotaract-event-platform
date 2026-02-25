@@ -1,7 +1,6 @@
-import { db, storage } from './firebaseConfig';
+import { db } from './firebaseConfig';
 import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, orderBy, increment } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-// import { db, storage, collection, addDoc, updateDoc, doc, getDoc, getDocs, query, where, orderBy, deleteDoc, ref, uploadBytes, getDownloadURL } from './mockFirebase';
+
 
 const EVENTS_COLLECTION = 'events';
 

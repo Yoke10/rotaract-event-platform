@@ -101,21 +101,7 @@ export default function EventDetails() {
     return (
         <div className="min-h-screen" style={{ backgroundColor: '#f7f7f9' }}>
 
-            {/* ── Full-width landscape banner ── */}
-            {(event.landscapePosterURL || event.posterURL) && (
-                <div className="w-full mt-14 overflow-hidden"
-                    style={{ maxHeight: '420px', aspectRatio: '21/7' }}>
-                    <img
-                        src={event.landscapePosterURL || event.posterURL}
-                        alt={event.name}
-                        className="w-full h-full object-cover"
-                        style={{ filter: 'brightness(0.97)' }}
-                    />
-                </div>
-            )}
-
-            <div className="max-w-5xl mx-auto px-4 sm:px-6"
-                style={{ marginTop: (event.landscapePosterURL || event.posterURL) ? '0' : '80px' }}>
+            <div className="max-w-5xl mx-auto px-4 sm:px-6" style={{ marginTop: '96px' }}>
 
                 {/* ── Back link ── */}
                 <Link to="/events"
@@ -131,6 +117,18 @@ export default function EventDetails() {
 
                     {/* ── LEFT: Main Content ── */}
                     <div className="space-y-5">
+
+                        {/* Landscape banner card — sits above event title, matches card width */}
+                        {event.landscapePosterURL && (
+                            <div className="w-full rounded-2xl overflow-hidden shadow-sm border border-gray-100"
+                                style={{ aspectRatio: '16 / 7' }}>
+                                <img
+                                    src={event.landscapePosterURL}
+                                    alt={event.name}
+                                    className="w-full h-full object-cover object-center"
+                                />
+                            </div>
+                        )}
 
                         {/* Header card */}
                         <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100">

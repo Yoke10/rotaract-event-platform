@@ -6,7 +6,7 @@ import { Loader2, LogIn } from 'lucide-react';
 
 export default function Login() {
     const { register, handleSubmit, formState: { errors } } = useForm();
-    const { login, googleLogin } = useAuth();
+    const { login, googleLogin, currentUser } = useAuth();
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
@@ -34,6 +34,26 @@ export default function Login() {
         }
         setLoading(false);
     };
+
+    // Already logged in — show a friendly message instead of the form
+    if (currentUser) {
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#f9f0ff 0%,#fff0f8 100%)' }}>
+                <div className="text-center bg-white rounded-2xl shadow-lg px-10 py-12 max-w-sm w-full mx-4">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+                        style={{ background: 'linear-gradient(135deg,#400763,#ed0775)' }}>
+                        <span className="text-3xl">👤</span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-1" style={{ color: '#1a1a1a' }}>Already Logged In</h2>
+                    <p className="text-sm mb-6" style={{ color: '#6b6b6b' }}>You are already signed in as<br /><strong>{currentUser.email}</strong></p>
+                    <div className="flex flex-col gap-3">
+                        <Link to="/" className="btn-primary text-center">Go to Home</Link>
+                        <Link to="/profile" className="btn-secondary text-center text-sm">My Profile</Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center">
