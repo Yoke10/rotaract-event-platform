@@ -1,8 +1,157 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
-import { Users, QrCode, DollarSign, Calendar, ArrowLeft, ClipboardList } from 'lucide-react';
+import {
+    Users, QrCode, DollarSign, Calendar, ArrowLeft, ClipboardList,
+    X, Eye, CheckCircle, Clock, Phone, Mail, User, Tag
+} from 'lucide-react';
 
+// ── Participant Details Modal ─────────────────────────────────────────────────
+function ParticipantModal({ booking, tickets, loading, onClose }) {
+    if (!booking) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }}
+            onClick={onClose}>
+            <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Modal header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">Booking Details</h3>
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">{booking.orderId}</p>
+                    </div>
+                    <button onClick={onClose}
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Booking summary */}
+                <div className="px-6 py-4 bg-gray-50/60 border-b border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Booked By</p>
+                        <p className="font-semibold text-gray-800">{booking.userName || '—'}</p>
+                        <p className="text-xs text-gray-500">{booking.userEmail}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Club</p>
+                        <p className="font-semibold text-gray-800">{booking.club || '—'}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Tickets</p>
+                        <p className="font-semibold text-gray-800">{booking.numberOfTickets}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Amount</p>
+                        <p className="font-semibold text-indigo-600">₹{booking.totalAmount}</p>
+                    </div>
+                </div>
+
+                {/* Participants / Tickets */}
+                <div className="px-6 py-5">
+                    <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <Users className="w-4 h-4" /> Participants
+                        <span className="ml-auto text-xs font-normal text-gray-400">
+                            {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+                        </span>
+                    </h4>
+
+                    {loading ? (
+                        <div className="flex items-center justify-center py-10 text-gray-400">
+                            <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mr-3" />
+                            Loading participants…
+                        </div>
+                    ) : tickets.length === 0 ? (
+                        <div className="text-center py-10 text-gray-400">
+                            <Clock className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                            <p className="text-sm font-medium">No participant details yet</p>
+                            <p className="text-xs mt-1">This booking is pending participant details submission.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {tickets.map((ticket, idx) => (
+                                <div key={ticket.firestoreId || idx}
+                                    className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 hover:bg-white transition-colors">
+                                    <div className="flex items-start justify-between gap-2 mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm flex-shrink-0">
+                                                {idx + 1}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-gray-900">{ticket.participantName || '—'}</p>
+                                                <p className="text-xs text-gray-500 font-mono">{ticket.ticketId}</p>
+                                            </div>
+                                        </div>
+                                        {/* Scan status — check both legacy field AND per-category scans map */}
+                                        {(() => {
+                                            const scansMap = ticket.scans || {};
+                                            const scannedCategories = Object.keys(scansMap);
+                                            const hasAnyScan = ticket.scanned || scannedCategories.length > 0;
+
+                                            if (!hasAnyScan) return (
+                                                <span className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
+                                                    <Clock className="w-3 h-3" /> Not Scanned
+                                                </span>
+                                            );
+
+                                            // Show each scanned category as its own badge
+                                            const cats = scannedCategories.length > 0
+                                                ? scannedCategories
+                                                : ['Entry']; // fallback if only legacy field is set
+
+                                            return (
+                                                <div className="flex flex-wrap gap-1 justify-end">
+                                                    {cats.map(cat => (
+                                                        <span key={cat} className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700 flex-shrink-0">
+                                                            <CheckCircle className="w-3 h-3" /> {cat}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                        {ticket.participantEmail && (
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                <span className="truncate">{ticket.participantEmail}</span>
+                                            </div>
+                                        )}
+                                        {ticket.participantMobile && (
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                <span>{ticket.participantMobile}</span>
+                                            </div>
+                                        )}
+                                        {ticket.participantClub && (
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                <span>{ticket.participantClub}</span>
+                                            </div>
+                                        )}
+                                        {ticket.category && (
+                                            <div className="flex items-center gap-2 text-gray-600">
+                                                <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                <span>{ticket.category}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Main EventDashboard ───────────────────────────────────────────────────────
 export default function EventDashboard() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -10,50 +159,29 @@ export default function EventDashboard() {
     const [registrations, setRegistrations] = useState([]);
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({
-        totalTickets: 0,
-        scannedTickets: 0,
-        totalRevenue: 0,
-        totalBookings: 0
-    });
+    const [stats, setStats] = useState({ totalTickets: 0, scannedTickets: 0, totalRevenue: 0, totalBookings: 0 });
+
+    // ── Modal state ────────────────────────────────────────────────────────
+    const [selectedBooking, setSelectedBooking] = useState(null);
+    const [modalTickets, setModalTickets] = useState([]);
+    const [modalLoading, setModalLoading] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // 1. Fetch Event Details
                 const eventData = await eventService.getEvent(id);
                 setEvent(eventData);
-
                 if (eventData) {
-                    // 2. Fetch Bookings for this event
                     const bookings = await eventService.getEventBookings(id);
                     setRegistrations(bookings || []);
-
-                    // 3. Fetch Tickets for this event (for accurate participant counts)
                     const eventTickets = await eventService.getEventTickets(id);
                     setTickets(eventTickets || []);
-
-                    // 4. Calculate stats
-                    let scannedCount = 0;
-                    let revenue = 0;
-
-                    // Revenue from bookings
-                    if (bookings) {
-                        bookings.forEach(b => {
-                            revenue += Number(b.totalAmount) || 0;
-                        });
-                    }
-
-                    // Counts from tickets
-                    if (eventTickets) {
-                        eventTickets.forEach(t => {
-                            if (t.scanned) scannedCount++;
-                        });
-                    }
-
+                    let scannedCount = 0, revenue = 0;
+                    (bookings || []).forEach(b => { revenue += Number(b.totalAmount) || 0; });
+                    (eventTickets || []).forEach(t => { if (t.scanned) scannedCount++; });
                     setStats({
-                        totalBookings: bookings ? bookings.length : 0,
-                        totalTickets: eventTickets ? eventTickets.length : 0,
+                        totalBookings: (bookings || []).length,
+                        totalTickets: (eventTickets || []).length,
                         scannedTickets: scannedCount,
                         totalRevenue: revenue
                     });
@@ -67,15 +195,26 @@ export default function EventDashboard() {
         fetchData();
     }, [id]);
 
+    const openBookingModal = async (booking) => {
+        setSelectedBooking(booking);
+        setModalTickets([]);
+        setModalLoading(true);
+        try {
+            const t = await eventService.getBookingTickets(booking.firestoreId);
+            setModalTickets(t || []);
+        } catch (e) {
+            console.error('Failed to load tickets:', e);
+        } finally {
+            setModalLoading(false);
+        }
+    };
+
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'Invalid Date';
-            return date.toLocaleDateString();
-        } catch (e) {
-            return 'Error';
-        }
+            const d = new Date(dateString);
+            return isNaN(d.getTime()) ? 'Invalid Date' : d.toLocaleDateString();
+        } catch { return 'Error'; }
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -83,6 +222,16 @@ export default function EventDashboard() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
+            {/* Participant Modal */}
+            {selectedBooking && (
+                <ParticipantModal
+                    booking={selectedBooking}
+                    tickets={modalTickets}
+                    loading={modalLoading}
+                    onClose={() => setSelectedBooking(null)}
+                />
+            )}
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <Link to="/admin/dashboard" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-6 font-medium">
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
@@ -99,68 +248,87 @@ export default function EventDashboard() {
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <button
-                            onClick={() => navigate(`/admin/event/${id}/checkin`)}
-                            className="btn-primary py-2 px-4 flex items-center gap-2 font-bold shadow-indigo-200"
-                        >
-                            <ClipboardList className="w-4 h-4" />
-                            Check-in Desk
+                        <button onClick={() => navigate(`/admin/event/${id}/checkin`)}
+                            className="btn-primary py-2 px-4 flex items-center gap-2 font-bold shadow-indigo-200">
+                            <ClipboardList className="w-4 h-4" /> Check-in Desk
                         </button>
                     </div>
                 </div>
 
-                {/* Stats Grid */}
+                {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between relative z-10">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500">Total Tickets Sold</p>
-                                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalTickets}</p>
-                                <p className="text-xs text-gray-400 mt-1">From {stats.totalBookings} orders</p>
-                            </div>
-                            <div className="p-3 bg-blue-50 rounded-lg group-hover:scale-110 transition-transform">
-                                <Users className="w-6 h-6 text-blue-600" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between relative z-10">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500">Checked In</p>
-                                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.scannedTickets}</p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                    {stats.totalTickets > 0
-                                        ? `${Math.round((stats.scannedTickets / stats.totalTickets) * 100)}% attendance`
-                                        : '0% attendance'}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-purple-50 rounded-lg group-hover:scale-110 transition-transform">
-                                <QrCode className="w-6 h-6 text-purple-600" />
+                    {[
+                        { label: 'Total Tickets Sold', value: stats.totalTickets, sub: `From ${stats.totalBookings} orders`, icon: <Users className="w-6 h-6 text-blue-600" />, bg: 'bg-blue-50' },
+                        { label: 'Checked In', value: stats.scannedTickets, sub: stats.totalTickets > 0 ? `${Math.round((stats.scannedTickets / stats.totalTickets) * 100)}% attendance` : '0% attendance', icon: <QrCode className="w-6 h-6 text-purple-600" />, bg: 'bg-purple-50' },
+                        { label: 'Total Revenue', value: `₹${stats.totalRevenue}`, sub: 'Gross sales', icon: <DollarSign className="w-6 h-6 text-green-600" />, bg: 'bg-green-50' },
+                    ].map(s => (
+                        <div key={s.label} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">{s.label}</p>
+                                    <p className="text-3xl font-bold text-gray-900 mt-1">{s.value}</p>
+                                    <p className="text-xs text-gray-400 mt-1">{s.sub}</p>
+                                </div>
+                                <div className={`p-3 ${s.bg} rounded-lg group-hover:scale-110 transition-transform`}>{s.icon}</div>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between relative z-10">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-                                <p className="text-3xl font-bold text-gray-900 mt-1">₹{stats.totalRevenue}</p>
-                                <p className="text-xs text-gray-400 mt-1">Gross sales</p>
-                            </div>
-                            <div className="p-3 bg-green-50 rounded-lg group-hover:scale-110 transition-transform">
-                                <DollarSign className="w-6 h-6 text-green-600" />
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
 
-                {/* Recent Registrations List (Bookings) */}
+                {/* ── Club Summary Card (click to see full breakdown) ── */}
+                {(() => {
+                    const clubMap = {};
+                    registrations.forEach(reg => {
+                        const club = reg.club || 'Unknown';
+                        if (!clubMap[club]) clubMap[club] = { tickets: 0, revenue: 0 };
+                        clubMap[club].tickets += Number(reg.numberOfTickets) || 1;
+                        clubMap[club].revenue += Number(reg.totalAmount) || 0;
+                    });
+                    const clubs = Object.entries(clubMap).sort((a, b) => b[1].tickets - a[1].tickets);
+                    if (clubs.length === 0) return null;
+                    const totalTickets = clubs.reduce((s, [, d]) => s + d.tickets, 0);
+                    return (
+                        <div
+                            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group"
+                            onClick={() => navigate(`/admin/event/${id}/clubs`)}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <Users className="w-5 h-5 text-indigo-500" /> Registrations by Club
+                                </h2>
+                                <span className="text-xs font-semibold text-indigo-600 group-hover:underline flex items-center gap-1">
+                                    View all {clubs.length} clubs →
+                                </span>
+                            </div>
+                            {/* Top 3 preview */}
+                            <div className="space-y-2">
+                                {clubs.slice(0, 3).map(([club, data]) => (
+                                    <div key={club} className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-gray-700 w-32 truncate">{club}</span>
+                                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full" style={{
+                                                width: `${(data.tickets / (clubs[0][1].tickets || 1)) * 100}%`,
+                                                background: 'linear-gradient(90deg,#6366f1,#a855f7)'
+                                            }} />
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-900 w-12 text-right">{data.tickets} tkts</span>
+                                    </div>
+                                ))}
+                                {clubs.length > 3 && (
+                                    <p className="text-xs text-gray-400 pt-1">+{clubs.length - 3} more clubs · {totalTickets} total tickets</p>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* Recent Orders table */}
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
                         <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">
-                            Showing last {registrations ? Math.min(registrations.length, 10) : 0}
+                            Showing last {Math.min(registrations.length, 10)}
                         </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -174,27 +342,22 @@ export default function EventDashboard() {
                                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
                                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">View</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {registrations && registrations.slice(0, 10).map((reg) => (
-                                    <tr key={reg.id || Math.random()} className="hover:bg-gray-50 transition-colors">
+                                {registrations.slice(0, 10).map((reg) => (
+                                    <tr key={reg.firestoreId || reg.id || Math.random()} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
-                                            {reg.orderId || (reg.id ? reg.id.substring(0, 8) : 'N/A')}
+                                            {reg.orderId || reg.id?.substring(0, 8) || 'N/A'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-bold text-gray-900">{reg.userName || 'Unknown'}</div>
                                             <div className="text-xs text-gray-500">{reg.userEmail}</div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {reg.club || '-'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            {reg.numberOfTickets || 1}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
-                                            ₹{reg.totalAmount}
-                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{reg.club || '-'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{reg.numberOfTickets || 1}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">₹{reg.totalAmount}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${reg.status === 'confirmed' ? 'bg-green-100 text-green-800' :
                                                 reg.status === 'pending_details' ? 'bg-yellow-100 text-yellow-800' :
@@ -206,11 +369,19 @@ export default function EventDashboard() {
                                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                                             {formatDate(reg.createdAt)}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <button
+                                                onClick={() => openBookingModal(reg)}
+                                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" /> View
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        {(!registrations || registrations.length === 0) && (
+                        {registrations.length === 0 && (
                             <div className="text-center py-12">
                                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                 <p className="text-gray-500 font-medium">No registrations yet.</p>

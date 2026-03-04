@@ -2,10 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Events: public read, admin-only write ────────────────────────────────
+    // ─── Events: public read, auth users can update ticketsSold, admin full write ─
     match /events/{eventId} {
       allow read: if true;
-      allow write: if request.auth != null
+
+      // Any logged-in user can increment ticketsSold (happens after payment)
+      allow update: if request.auth != null
+                   && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['ticketsSold']);
+
+      // Admins can create / delete / do full updates
+      allow create, delete: if request.auth != null
+                   && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow update: if request.auth != null
                    && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 

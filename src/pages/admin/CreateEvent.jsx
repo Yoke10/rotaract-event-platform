@@ -5,9 +5,26 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     Check, ChevronRight, ChevronLeft, DollarSign, List, Shield,
     Info, Plus, Trash2, Layers, Tag, GitBranch, Settings, Image,
-    Users, Globe, PenLine
+    Users, Globe, PenLine, X, Upload
 } from 'lucide-react';
-import { clubService } from '../../services/clubService';
+// ── Reusable Toggle Switch ────────────────────────────────────────────────
+function ToggleSwitch({ enabled, onToggle, label, description }) {
+    return (
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 mb-4">
+            <div>
+                <p className="font-semibold text-gray-800 text-sm">{label}</p>
+                {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+            </div>
+            <button type="button" onClick={onToggle}
+                className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                aria-checked={enabled} role="switch">
+                <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+        </div>
+    );
+}
+
+import * as XLSX from 'xlsx';
 
 const STEPS = [
     { id: 1, name: 'Basics', icon: PenLine },
@@ -30,23 +47,6 @@ const COMFORTS_LIST = [
     'First Aid Kit', 'Security Personnel', 'Photography / Videography',
 ];
 
-// ── Reusable Toggle Switch ────────────────────────────────────────────────
-function ToggleSwitch({ enabled, onToggle, label, description }) {
-    return (
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 mb-4">
-            <div>
-                <p className="font-semibold text-gray-800 text-sm">{label}</p>
-                {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
-            </div>
-            <button type="button" onClick={onToggle}
-                className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                aria-checked={enabled} role="switch">
-                <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-        </div>
-    );
-}
-
 function ModuleSection({ enabled, children }) {
     if (!enabled) return null;
     return (
@@ -63,7 +63,7 @@ export default function CreateEvent() {
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [accessCodeError, setAccessCodeError] = useState('');
-    const [clubs, setClubs] = useState([]);
+    const [clubs, setClubs] = useState([]); // Event-specific clubs
     const [newClubName, setNewClubName] = useState('');
     const [showAddClub, setShowAddClub] = useState(false);
 
@@ -170,21 +170,62 @@ export default function CreateEvent() {
     const { fields, append, remove } = useFieldArray({ control, name: 'categories' });
 
     useEffect(() => { if (id) loadEventData(); }, [id]);
-    useEffect(() => { loadClubs(); }, []);
 
-    const loadClubs = async () => {
-        try { setClubs(await clubService.getClubs()); }
-        catch (e) { console.error('Failed to load clubs', e); }
+    const handleAddClub = () => {
+        if (!newClubName.trim()) return;
+        const name = newClubName.trim();
+        if (!clubs.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+            setClubs([...clubs, { id: Date.now().toString(), name }]);
+        }
+        setNewClubName('');
+        setShowAddClub(false);
     };
 
-    const handleAddClub = async () => {
-        if (!newClubName.trim()) return;
-        try {
-            await clubService.addClub(newClubName);
-            await loadClubs();
-            setNewClubName('');
-            setShowAddClub(false);
-        } catch (e) { alert('Failed to add club: ' + e.message); }
+    const handleRemoveClub = (clubId) => {
+        setClubs(clubs.filter(c => c.id !== clubId));
+        // Reset the form selection if the removed club was selected
+        if (watch('club') === clubs.find(c => c.id === clubId)?.name) {
+            reset({ ...watch(), club: '' });
+        }
+    };
+
+    const handleExcelUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = evt.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                const newClubs = [];
+                // Assuming first column has club names
+                rows.forEach(row => {
+                    if (row[0] && typeof row[0] === 'string') {
+                        const name = row[0].trim();
+                        if (name && !newClubs.some(c => c.name.toLowerCase() === name.toLowerCase()) && !clubs.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+                            newClubs.push({ id: Math.random().toString(36).substring(7), name });
+                        }
+                    }
+                });
+
+                if (newClubs.length > 0) {
+                    setClubs(prev => [...prev, ...newClubs]);
+                    alert(`Successfully imported ${newClubs.length} clubs.`);
+                } else {
+                    alert('No valid new clubs found in the Excel file.');
+                }
+            } catch (error) {
+                console.error('Excel parse error:', error);
+                alert('Failed to parse Excel file. Ensure it has club names in the first column.');
+            }
+            // Reset input so the same file could be selected again if needed
+            e.target.value = '';
+        };
+        reader.readAsBinaryString(file);
     };
 
     const loadEventData = async () => {
@@ -199,6 +240,7 @@ export default function CreateEvent() {
                 categories: ev.categories?.map(c => ({ name: c })) || [{ name: 'Entry' }],
                 comforts: ev.comforts || [],
             });
+            if (ev.clubs) setClubs(ev.clubs);
             // Restore image previews from existing URLs
             if (ev.posterURL) setPosterPreview(ev.posterURL);
             if (ev.landscapePosterURL) setBannerPreview(ev.landscapePosterURL);
@@ -290,7 +332,8 @@ export default function CreateEvent() {
                 // ── Poster (use uploaded URLs, not form fields) ──
                 posterURL: finalPosterURL,
                 landscapePosterURL: finalBannerURL,
-                // ── Club: only for Rotaract ──
+                // ── Clubs ──
+                clubs: eventType === 'rotaract' ? clubs : [], // Save available clubs
                 club: eventType === 'rotaract' ? (data.club || null) : null,
                 // ── Ticket config ──
                 ticketPrice: (enableTicketModule && !enableTicketTiers && !enablePricingCategories)
@@ -468,21 +511,39 @@ export default function CreateEvent() {
                                                 {clubs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                             </select>
                                             <button type="button" onClick={() => setShowAddClub(!showAddClub)}
-                                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
-                                                {showAddClub ? 'Cancel' : '+ Add'}
+                                                className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium border border-indigo-200">
+                                                {showAddClub ? 'Cancel' : '+ Add Single'}
                                             </button>
+                                            <label className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium border border-green-200 cursor-pointer flex items-center gap-1.5 focus-within:ring-2 focus-within:ring-green-500 focus-within:ring-offset-1">
+                                                <Upload className="w-4 h-4" /> Upload Excel
+                                                <input type="file" accept=".xlsx, .xls, .csv" onChange={handleExcelUpload} className="hidden" />
+                                            </label>
                                         </div>
                                         {showAddClub && (
-                                            <div className="mt-2 flex gap-2">
-                                                <input type="text" value={newClubName}
-                                                    onChange={e => setNewClubName(e.target.value)}
-                                                    placeholder="Enter new club name"
-                                                    className={`flex-1 ${inp}`}
-                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddClub(); } }} />
-                                                <button type="button" onClick={handleAddClub}
-                                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
-                                                    Save
-                                                </button>
+                                            <div className="mt-2 text-right">
+                                                <div className="flex gap-2">
+                                                    <input type="text" value={newClubName}
+                                                        onChange={e => setNewClubName(e.target.value)}
+                                                        placeholder="Enter new club name"
+                                                        className={`flex-1 ${inp}`}
+                                                    />
+                                                    <button type="button" onClick={handleAddClub}
+                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium whitespace-nowrap">
+                                                        Add Club
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {clubs.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {clubs.map(c => (
+                                                    <span key={c.id} className="inline-flex items-center gap-1 bg-white border border-gray-200 px-2 py-1 rounded-md text-xs text-gray-700 shadow-sm">
+                                                        {c.name}
+                                                        <button type="button" onClick={() => handleRemoveClub(c.id)} className="text-gray-400 hover:text-red-500 ml-1">
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </span>
+                                                ))}
                                             </div>
                                         )}
                                     </div>

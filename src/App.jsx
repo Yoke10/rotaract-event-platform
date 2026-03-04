@@ -13,6 +13,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './components/AdminLayout';
 import CreateEvent from './pages/admin/CreateEvent';
 import EventDashboard from './pages/admin/EventDashboard';
+import ClubDashboard from './pages/admin/ClubDashboard';
 import CheckInDashboard from './pages/admin/CheckInDashboard';
 import EventDetails from './pages/EventDetails';
 import Booking from './pages/Booking';
@@ -102,6 +103,11 @@ function App() {
             <Route path="/admin/event/:id" element={
               <PrivateRoute requiredRole="admin">
                 <EventDashboard />
+              </PrivateRoute>
+            } />
+            <Route path="/admin/event/:id/clubs" element={
+              <PrivateRoute requiredRole="admin">
+                <ClubDashboard />
               </PrivateRoute>
             } />
             <Route path="/admin/event/:id/checkin" element={

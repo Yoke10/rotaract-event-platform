@@ -9,7 +9,6 @@ import {
     Shield, Plus, Minus, ChevronDown,
     Calendar, MapPin, Clock, Lock, User, Mail, Phone, Home
 } from 'lucide-react';
-import { clubService } from '../services/clubService';
 
 // ── Helper: derive payment mode from event data ─────────────────
 function getPricingMode(event) {
@@ -39,7 +38,6 @@ export default function Booking() {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
     const [paymentResult, setPaymentResult] = useState(null);
-    const [clubs, setClubs] = useState([]);
 
     // ── Pricing state ────────────────────────────────────────────
     const [categoryQty, setCategoryQty] = useState({});
@@ -51,13 +49,7 @@ export default function Booking() {
 
     useEffect(() => {
         loadEvent();
-        loadClubs();
     }, [id]);
-
-    const loadClubs = async () => {
-        try { setClubs(await clubService.getClubs()); }
-        catch (e) { console.error('Failed to load clubs:', e); }
-    };
 
     const loadEvent = async () => {
         try {
@@ -269,9 +261,13 @@ export default function Booking() {
                                                 disabled={processing}
                                             >
                                                 <option value="">Select your club</option>
-                                                {clubs.map(c => (
-                                                    <option key={c.id} value={c.name}>{c.name}</option>
-                                                ))}
+                                                {event.clubs && event.clubs.length > 0 ? (
+                                                    event.clubs.map(c => (
+                                                        <option key={c.id} value={c.name}>{c.name}</option>
+                                                    ))
+                                                ) : (
+                                                    <option value="Other">Other</option>
+                                                )}
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#aaa' }} />
                                         </div>
