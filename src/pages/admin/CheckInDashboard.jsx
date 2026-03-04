@@ -5,7 +5,7 @@ import { ArrowLeft, Users, CheckCircle, XCircle, Search, RefreshCw, Smartphone, 
 import { db } from '../../services/firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
-export default function CheckInDashboard() {
+export default function CheckInDashboard({ isHostMode = false }) {
     const { id } = useParams();
     const [event, setEvent] = useState(null);
     const [tickets, setTickets] = useState([]);
@@ -183,7 +183,7 @@ export default function CheckInDashboard() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <div>
-                        <Link to={`/admin/event/${id}`} className="inline-flex items-center text-gray-500 hover:text-indigo-600 mb-2 transition-colors">
+                        <Link to={isHostMode ? `/host/event/${id}` : `/admin/event/${id}`} className="inline-flex items-center text-gray-500 hover:text-indigo-600 mb-2 transition-colors">
                             <ArrowLeft className="w-4 h-4 mr-1" /> Back to Event Dashboard
                         </Link>
                         <h1 className="text-3xl font-black text-gray-900">Check-in Desk</h1>

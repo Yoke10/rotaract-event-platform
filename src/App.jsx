@@ -22,6 +22,9 @@ import MyTickets from './pages/MyTickets';
 import QRScanner from './pages/QRScanner';
 import ParticipantDetails from './pages/ParticipantDetails';
 import Profile from './pages/Profile';
+import HostLogin from './pages/HostLogin';
+import HostLayout from './components/HostLayout';
+import HostRoute from './components/HostRoute';
 
 // Full layout with navbar + footer (all public pages)
 const PublicLayout = () => (
@@ -50,6 +53,7 @@ function App() {
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/host-login" element={<HostLogin />} />
           </Route>
 
           {/* ── Standalone Admin Login (already bare) ── */}
@@ -114,6 +118,25 @@ function App() {
               <PrivateRoute requiredRole="admin">
                 <CheckInDashboard />
               </PrivateRoute>
+            } />
+          </Route>
+
+          {/* ── Host Layout Routes ── */}
+          <Route element={<HostLayout />}>
+            <Route path="/host/event/:id" element={
+              <HostRoute>
+                <EventDashboard isHostMode={true} />
+              </HostRoute>
+            } />
+            <Route path="/host/event/:id/clubs" element={
+              <HostRoute>
+                <ClubDashboard isHostMode={true} />
+              </HostRoute>
+            } />
+            <Route path="/host/event/:id/checkin" element={
+              <HostRoute>
+                <CheckInDashboard isHostMode={true} />
+              </HostRoute>
             } />
           </Route>
         </Routes>

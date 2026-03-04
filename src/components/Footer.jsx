@@ -18,8 +18,9 @@ const ACCOUNT_LINKS = [
 ];
 
 const ADMIN_LINKS = [
-    { label: 'Admin Login', to: '/admin-login', icon: Shield, newTab: true },
-    { label: 'Scanner Portal', to: '/scanner', icon: Scan },
+    { label: 'Admin Login', to: '/admin-login', icon: Shield, newTab: false },
+    { label: 'Event Host Login', to: '/host-login', icon: Shield, newTab: false },
+    { label: 'Scanner Portal', to: '/scanner', icon: Scan, newTab: false },
 ];
 
 const SOCIAL = [

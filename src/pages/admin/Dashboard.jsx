@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
-import { Calendar, Users, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Users, Edit, Trash2, Key } from 'lucide-react';
 
 export default function AdminDashboard() {
     const [events, setEvents] = useState([]);
@@ -71,6 +71,12 @@ export default function AdminDashboard() {
                                     <Users className="w-4 h-4 mr-2 text-green-400" />
                                     {event.ticketsSold || 0} Registered
                                 </div>
+                                {event.hostUsername && (
+                                    <div className="flex items-center pt-2 border-t border-gray-100">
+                                        <Key className="w-4 h-4 mr-2 text-orange-400" />
+                                        <span className="font-mono text-xs">{event.hostUsername} / {event.hostPassword}</span>
+                                    </div>
+                                )}
                             </div>
                         </Link>
                     </div>

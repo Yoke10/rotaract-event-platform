@@ -8,9 +8,9 @@ import {
 } from 'lucide-react';
 
 const SCANNER_ID = 'qr-scanner-viewport';
-// The global Navbar is fixed at top:0 and is h-20 (80px).
-// All sticky/fixed elements inside the scanner must offset by 80px.
-const NAV_H = 80;
+// The global Navbar is fixed at top:0 and is h-16 (64px).
+// All sticky/fixed elements inside the scanner must offset by 64px.
+const NAV_H = 64;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function InfoRow({ label, value, accent, mono }) {
@@ -26,10 +26,10 @@ function InfoRow({ label, value, accent, mono }) {
 
 function StatusBadge({ type }) {
   const map = {
-    SUCCESS:         { dot: 'bg-emerald-500', text: 'text-emerald-700', label: 'Valid'     },
-    ALREADY_SCANNED: { dot: 'bg-amber-500',   text: 'text-amber-700',   label: 'Duplicate' },
-    ERROR:           { dot: 'bg-red-500',     text: 'text-red-700',     label: 'Invalid'   },
-    INVALID_STATUS:  { dot: 'bg-red-500',     text: 'text-red-700',     label: 'Invalid'   },
+    SUCCESS: { dot: 'bg-emerald-500', text: 'text-emerald-700', label: 'Valid' },
+    ALREADY_SCANNED: { dot: 'bg-amber-500', text: 'text-amber-700', label: 'Duplicate' },
+    ERROR: { dot: 'bg-red-500', text: 'text-red-700', label: 'Invalid' },
+    INVALID_STATUS: { dot: 'bg-red-500', text: 'text-red-700', label: 'Invalid' },
   };
   const cfg = map[type] || map.ERROR;
   return (
@@ -60,31 +60,31 @@ export default function QRScanner() {
   const navigate = useNavigate();
 
   // Auth state
-  const [accessCode, setAccessCode]     = useState('');
-  const [isAccessGranted, setIsAccess]  = useState(false);
-  const [activeEvent, setActiveEvent]   = useState(null);
-  const [authError, setAuthError]       = useState('');
-  const [authLoading, setAuthLoading]   = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  const [isAccessGranted, setIsAccess] = useState(false);
+  const [activeEvent, setActiveEvent] = useState(null);
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Category
   const [selectedCategory, setSelectedCategory] = useState('');
   const selectedCategoryRef = useRef('');
-  const activeEventRef      = useRef(null);
+  const activeEventRef = useRef(null);
   useEffect(() => { selectedCategoryRef.current = selectedCategory; }, [selectedCategory]);
   useEffect(() => { activeEventRef.current = activeEvent; }, [activeEvent]);
 
   // Camera
-  const [cameraState, setCameraState]   = useState('idle');
-  const [cameraError, setCameraError]   = useState('');
-  const [cameras, setCameras]           = useState([]);
+  const [cameraState, setCameraState] = useState('idle');
+  const [cameraError, setCameraError] = useState('');
+  const [cameras, setCameras] = useState([]);
   const [activeCamIdx, setActiveCamIdx] = useState(0);
 
   // Scan result
-  const [scanResult,  setScanResult]    = useState(null);
-  const [scanError,   setScanError]     = useState(null);
-  const [scanLoading, setScanLoading]   = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanError, setScanError] = useState(null);
+  const [scanLoading, setScanLoading] = useState(false);
 
-  const qrRef       = useRef(null);
+  const qrRef = useRef(null);
   const scanningRef = useRef(false);
 
   // Inject camera CSS once
@@ -112,8 +112,8 @@ export default function QRScanner() {
     setAuthError('');
     try {
       const events = await eventService.getAllEvents();
-      const input  = accessCode.trim().toUpperCase();
-      const event  = events.find(ev => ev.accessCode?.trim().toUpperCase() === input);
+      const input = accessCode.trim().toUpperCase();
+      const event = events.find(ev => ev.accessCode?.trim().toUpperCase() === input);
       if (event) {
         const firstCat = (ev) => {
           if (!ev.categories?.length) return 'Entry';
@@ -140,7 +140,7 @@ export default function QRScanner() {
         const s = qrRef.current.getState();
         if (s === 2 || s === 3) await qrRef.current.stop();
         qrRef.current.clear();
-      } catch {}
+      } catch { }
       qrRef.current = null;
     }
     scanningRef.current = false;
@@ -157,7 +157,7 @@ export default function QRScanner() {
         const s = qrRef.current.getState();
         if (s === 2 || s === 3) await qrRef.current.stop();
         qrRef.current.clear();
-      } catch {}
+      } catch { }
       qrRef.current = null;
     }
     await new Promise(r => setTimeout(r, 200));
@@ -184,7 +184,7 @@ export default function QRScanner() {
             handleScan(text);
           }
         },
-        () => {}
+        () => { }
       );
       setCameraState('active');
     } catch (err) {
@@ -245,10 +245,10 @@ export default function QRScanner() {
       const trimmed = (raw || '').trim();
       if (!trimmed.startsWith('TKT_') || trimmed.split('_').length < 3)
         throw new Error('Not a valid event ticket QR code.');
-      const ticket    = await eventService.getTicketById(trimmed);
+      const ticket = await eventService.getTicketById(trimmed);
       const liveEvent = activeEventRef.current;
       const tId = String(ticket?.eventId || '').trim();
-      const aId = String(liveEvent?.id   || '').trim();
+      const aId = String(liveEvent?.id || '').trim();
       if (!ticket || !liveEvent || tId !== aId)
         throw new Error('Ticket does not belong to this event.');
       if (ticket.status && ticket.status !== 'valid') {
@@ -270,7 +270,7 @@ export default function QRScanner() {
     }
   };
 
-  const resetScan   = () => { setScanResult(null); setScanError(null); scanningRef.current = false; };
+  const resetScan = () => { setScanResult(null); setScanError(null); scanningRef.current = false; };
   const changeEvent = async () => {
     await stopCamera();
     setIsAccess(false);
@@ -292,7 +292,7 @@ export default function QRScanner() {
           {/* Brand header */}
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shadow-md"
-              style={{ background: 'linear-gradient(135deg,#400763,#ed0775)' }}>
+              style={{ background: '#400763' }}>
               <Scan className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-xl font-extrabold text-gray-900">Event Scanner</h1>
@@ -317,7 +317,7 @@ export default function QRScanner() {
                   className="w-full text-center text-lg font-bold tracking-widest uppercase rounded-xl px-4 py-3.5 outline-none transition-all"
                   style={{ border: '2px solid #e5e5e5', background: '#fafafa', color: '#1a1a1a', letterSpacing: '0.25em' }}
                   onFocus={e => e.target.style.borderColor = '#400763'}
-                  onBlur={e  => e.target.style.borderColor = '#e5e5e5'}
+                  onBlur={e => e.target.style.borderColor = '#e5e5e5'}
                 />
               </div>
 
@@ -350,7 +350,7 @@ export default function QRScanner() {
   // VIEW 2 — CATEGORY SELECTION
   // ════════════════════════════════════════════════════════════════════════════
   const normalizeCat = c => (typeof c === 'object' && c?.name) ? c.name : String(c);
-  const categories   = activeEvent?.categories?.length
+  const categories = activeEvent?.categories?.length
     ? activeEvent.categories.map(normalizeCat)
     : ['Entry'];
 
@@ -416,8 +416,8 @@ export default function QRScanner() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
-              style={{ background: 'linear-gradient(135deg,#400763,#ed0775)' }}>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
+              style={{ background: '#400763' }}>
               {selectedCategory}
             </span>
             <button
@@ -588,10 +588,10 @@ export default function QRScanner() {
               </div>
 
               <div className="bg-gray-50 rounded-xl px-4 py-0.5">
-                <InfoRow label="Name"    value={scanResult.ticket.participantName} />
-                <InfoRow label="Club"    value={scanResult.ticket.participantClub || '—'} />
+                <InfoRow label="Name" value={scanResult.ticket.participantName} />
+                <InfoRow label="Club" value={scanResult.ticket.participantClub || '—'} />
                 <InfoRow label="Station" value={selectedCategory} accent />
-                <InfoRow label="Ticket"  value={(scanResult.ticket.ticketId || '').slice(0, 18) + '…'} mono />
+                <InfoRow label="Ticket" value={(scanResult.ticket.ticketId || '').slice(0, 18) + '…'} mono />
               </div>
 
               <button onClick={resetScan} className="btn-primary w-full py-2.5 text-sm">

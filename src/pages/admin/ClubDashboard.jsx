@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
 import { ArrowLeft, Users, DollarSign, Ticket, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
-export default function ClubDashboard() {
+export default function ClubDashboard({ isHostMode = false }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const [event, setEvent] = useState(null);
@@ -62,7 +62,7 @@ export default function ClubDashboard() {
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
                 {/* Back */}
-                <Link to={`/admin/event/${id}`}
+                <Link to={isHostMode ? `/host/event/${id}` : `/admin/event/${id}`}
                     className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 mb-6 font-medium text-sm">
                     <ArrowLeft className="w-4 h-4" /> Back to Event Dashboard
                 </Link>

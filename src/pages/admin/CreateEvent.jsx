@@ -239,6 +239,9 @@ export default function CreateEvent() {
                     ? new Date(ev.registrationCloseDate).toISOString().split('T')[0] : '',
                 categories: ev.categories?.map(c => ({ name: c })) || [{ name: 'Entry' }],
                 comforts: ev.comforts || [],
+                // Default host credentials if present
+                hostUsername: ev.hostUsername || '',
+                hostPassword: ev.hostPassword || '',
             });
             if (ev.clubs) setClubs(ev.clubs);
             // Restore image previews from existing URLs
@@ -280,7 +283,7 @@ export default function CreateEvent() {
         if (currentStep === 1) {
             valid = await trigger(['name', 'date', 'time', 'location', 'description']);
         } else if (currentStep === 2) {
-            const fields = ['accessCode', 'registrationCloseDate'];
+            const fields = ['accessCode', 'registrationCloseDate', 'hostUsername', 'hostPassword'];
             if (enableTicketModule && !enableTicketTiers && !enablePricingCategories) {
                 fields.push('ticketPrice');
             }
@@ -335,6 +338,9 @@ export default function CreateEvent() {
                 // ── Clubs ──
                 clubs: eventType === 'rotaract' ? clubs : [], // Save available clubs
                 club: eventType === 'rotaract' ? (data.club || null) : null,
+                // ── Host Credentials ──
+                hostUsername: data.hostUsername ? data.hostUsername.trim() : null,
+                hostPassword: data.hostPassword ? data.hostPassword.trim() : null,
                 // ── Ticket config ──
                 ticketPrice: (enableTicketModule && !enableTicketTiers && !enablePricingCategories)
                     ? (Number(data.ticketPrice) || 0)
@@ -645,6 +651,32 @@ export default function CreateEvent() {
                                     <input type="date" {...register('registrationCloseDate', { required: 'Deadline is required' })} className={inp} />
                                     {errors.registrationCloseDate && <p className="text-red-500 text-xs mt-1">{errors.registrationCloseDate.message}</p>}
                                 </div>
+                            </div>
+
+                            {/* Host Access Credentials */}
+                            <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                                <h3 className="text-sm font-bold text-orange-800 mb-3 flex items-center gap-2">
+                                    <Shield className="w-4 h-4" /> Dedicated Event Host Login
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={lbl}>Host Username (Optional)</label>
+                                        <input {...register('hostUsername')}
+                                            className={inp} placeholder="e.g. host_gala2024" />
+                                    </div>
+                                    <div>
+                                        <label className={lbl}>Host Password (Optional)</label>
+                                        <input {...register('hostPassword')} type="text"
+                                            autoComplete="off"
+                                            className={inp} placeholder="e.g. secretPass123" />
+                                    </div>
+                                    <p className="text-xs text-orange-600 md:col-span-2">
+                                        Providing these credentials allows an Event Host to log in via `/host-login` to see this event's dashboard (without edit permissions). If blank, no host login is created.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className={lbl}>Total Seats / Tickets</label>
                                     <input type="number" {...register('totalTickets')} min="1"

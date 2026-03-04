@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
 import {
     Users, QrCode, DollarSign, Calendar, ArrowLeft, ClipboardList,
-    X, Eye, CheckCircle, Clock, Phone, Mail, User, Tag
+    X, Eye, CheckCircle, Clock, Phone, Mail, User, Tag, Shield
 } from 'lucide-react';
 
 // ── Participant Details Modal ─────────────────────────────────────────────────
@@ -152,7 +152,7 @@ function ParticipantModal({ booking, tickets, loading, onClose }) {
 }
 
 // ── Main EventDashboard ───────────────────────────────────────────────────────
-export default function EventDashboard() {
+export default function EventDashboard({ isHostMode = false }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const [event, setEvent] = useState(null);
@@ -233,9 +233,15 @@ export default function EventDashboard() {
             )}
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <Link to="/admin/dashboard" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-6 font-medium">
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-                </Link>
+                {isHostMode ? (
+                    <Link to="/" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-6 font-medium">
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Website
+                    </Link>
+                ) : (
+                    <Link to="/admin/dashboard" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-6 font-medium">
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+                    </Link>
+                )}
 
                 {/* Event Header */}
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -248,12 +254,41 @@ export default function EventDashboard() {
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={() => navigate(`/admin/event/${id}/checkin`)}
-                            className="btn-primary py-2 px-4 flex items-center gap-2 font-bold shadow-indigo-200">
+                        {/* Only Admin can see the Edit button, not Event Hosts */}
+                        {!isHostMode && (
+                            <button onClick={() => navigate(`/admin/edit-event/${id}`)}
+                                className="px-4 py-2 border border-indigo-200 text-indigo-600 font-bold rounded-lg hover:bg-indigo-50 transition-colors hidden md:block">
+                                Edit Event
+                            </button>
+                        )}
+                        <button onClick={() => navigate(isHostMode ? `/host/event/${id}/checkin` : `/admin/event/${id}/checkin`)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
+                            style={{ background: '#400763' }}>
                             <ClipboardList className="w-4 h-4" /> Check-in Desk
                         </button>
                     </div>
                 </div>
+
+                {/* Host Credentials Info Card for Admins */}
+                {!isHostMode && event.hostUsername && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-8 flex items-start gap-4 shadow-sm">
+                        <div className="p-2 bg-orange-100 rounded-lg shrink-0">
+                            <Shield className="w-6 h-6 text-orange-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900">Event Host Access Enabled</h3>
+                            <p className="text-xs text-gray-600 mt-1">This event has a dedicated host login. Share these credentials and the link below with the host so they can view this dashboard without edit permissions.</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm font-mono bg-white px-3 py-2 rounded-lg border border-orange-100 w-fit">
+                                <span><span className="text-gray-400 select-none">User: </span><strong className="text-gray-800 select-all">{event.hostUsername}</strong></span>
+                                <span className="text-gray-300">|</span>
+                                <span><span className="text-gray-400 select-none">Pass: </span><strong className="text-gray-800 select-all">{event.hostPassword}</strong></span>
+                            </div>
+                            <div className="mt-2 text-xs text-indigo-600 font-medium font-mono select-all">
+                                {window.location.origin}/host-login
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -290,7 +325,7 @@ export default function EventDashboard() {
                     return (
                         <div
                             className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group"
-                            onClick={() => navigate(`/admin/event/${id}/clubs`)}
+                            onClick={() => navigate(isHostMode ? `/host/event/${id}/clubs` : `/admin/event/${id}/clubs`)}
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
