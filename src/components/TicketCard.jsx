@@ -94,8 +94,8 @@ export default function TicketCard({
 
     /* ── FULL portrait ticket card ───────────────────────────── */
     return (
-        <div className="overflow-hidden rounded-3xl shadow-lg max-w-sm mx-auto w-full"
-            style={{ border: '1px solid rgba(220,220,220,0.7)' }}>
+        <div className="overflow-hidden rounded-3xl shadow-lg max-w-sm mx-auto w-full text-sm"
+            style={{ border: '1px solid rgba(220,220,220,0.7)', transform: 'scale(0.95)', transformOrigin: 'top center' }}>
 
             {/* Printable zone */}
             <div ref={ticketRef} className="bg-white flex flex-col">
@@ -114,17 +114,17 @@ export default function TicketCard({
                 )}
 
                 {/* Event title + status */}
-                <div className="px-5 pt-4 pb-1 flex items-start justify-between gap-3">
+                <div className="px-4 pt-3 pb-1 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-widest mb-0.5"
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
                             style={{ color: '#ed0775' }}>Official Event Pass</p>
-                        <h2 className="font-extrabold text-lg leading-snug"
+                        <h2 className="font-extrabold text-base leading-snug"
                             style={{ color: '#1a1a1a' }}>
                             {booking?.eventName}
                         </h2>
                     </div>
                     {/* Status badge */}
-                    <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full mt-1"
+                    <span className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1"
                         style={isScanned
                             ? { background: 'rgba(34,197,94,0.1)', color: '#16a34a' }
                             : { background: 'rgba(64,7,99,0.07)', color: '#400763' }}>
@@ -136,8 +136,8 @@ export default function TicketCard({
 
                 {/* Category pill */}
                 {category && (
-                    <div className="px-5 pb-2">
-                        <span className="text-xs font-semibold px-3 py-1 rounded-full"
+                    <div className="px-4 pb-2">
+                        <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
                             style={{ background: 'rgba(64,7,99,0.07)', color: '#400763' }}>
                             {category}
                         </span>
@@ -145,7 +145,7 @@ export default function TicketCard({
                 )}
 
                 {/* Info grid */}
-                <div className="px-5 pb-4 mt-1 grid grid-cols-2 gap-x-4 gap-y-3">
+                <div className="px-4 pb-3 mt-1 grid grid-cols-2 gap-x-3 gap-y-2.5">
                     <InfoCell icon={User} label="Attendee" value={ticket?.participantName} />
                     {formattedDate && <InfoCell icon={Calendar} label="Date" value={formattedDate} />}
                     {booking?.eventTime && <InfoCell icon={Clock} label="Time" value={booking.eventTime} />}
@@ -163,26 +163,26 @@ export default function TicketCard({
                 </div>
 
                 {/* QR section */}
-                <div className="px-5 pt-4 pb-5 flex items-center gap-4">
-                    <div className="flex-shrink-0 bg-white rounded-2xl p-2.5"
+                <div className="px-4 pt-3 pb-4 flex items-center gap-3">
+                    <div className="flex-shrink-0 bg-white rounded-2xl p-2"
                         style={{ border: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                         <QRCodeSVG
                             value={ticket?.ticketId || 'unknown'}
-                            size={88}
+                            size={72}
                             bgColor="#ffffff"
                             fgColor="#1a1a1a"
                             level="H"
                         />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-widest mb-1"
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
                             style={{ color: '#9b9b9b' }}>Ticket ID</p>
-                        <p className="font-mono text-xs font-bold break-all leading-relaxed"
+                        <p className="font-mono text-[11px] font-bold break-all leading-relaxed"
                             style={{ color: '#400763' }}>
                             {ticket?.ticketId}
                         </p>
-                        <p className="text-xs mt-1.5" style={{ color: '#bbb' }}>
-                            Scan QR at entry for check-in
+                        <p className="text-[10px] mt-1" style={{ color: '#bbb' }}>
+                            Scan QR at entry
                         </p>
                     </div>
                 </div>
@@ -193,20 +193,20 @@ export default function TicketCard({
             </div>
 
             {/* Action bar — outside printable zone */}
-            <div className="flex items-center justify-end gap-2 px-5 py-3"
+            <div className="flex items-center justify-end gap-2 px-4 py-2"
                 style={{ background: '#fafafa', borderTop: '1px solid #f0f0f0' }}>
                 {onDownload && (
                     <button onClick={onDownload} title="Download Ticket"
-                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                         style={{ background: 'rgba(64,7,99,0.07)', color: '#400763' }}>
-                        <Download className="w-4 h-4" />
+                        <Download className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onShare && (
                     <button onClick={onShare} title="Share Ticket"
-                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                         style={{ background: 'rgba(237,7,117,0.07)', color: '#ed0775' }}>
-                        <Share2 className="w-4 h-4" />
+                        <Share2 className="w-3.5 h-3.5" />
                     </button>
                 )}
             </div>

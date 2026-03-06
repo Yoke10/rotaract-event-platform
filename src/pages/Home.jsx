@@ -57,8 +57,8 @@ export default function Home() {
                 </div>
 
                 {/* wave */}
-                <div className="absolute bottom-0 left-0 right-0" aria-hidden>
-                    <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                <div className="absolute bottom-0 left-0 right-0 overflow-hidden leading-none" aria-hidden>
+                    <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="block w-full h-[60px]">
                         <path d="M0 60L1440 60L1440 20C1200 60 960 5 720 20C480 35 240 60 0 20Z" fill="white" />
                     </svg>
                 </div>

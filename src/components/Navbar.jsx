@@ -150,9 +150,14 @@ export default function Navbar() {
                 {/* Mobile Menu */}
                 {isOpen && (
                     <div className="md:hidden py-4 border-t"
-                        style={{ borderColor: onHero ? 'rgba(255,255,255,0.25)' : '#e5e7eb' }}>
+                        style={{
+                            background: onHero ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)',
+                            backdropFilter: 'blur(16px) saturate(180%)',
+                            WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                            borderColor: onHero ? 'rgba(255, 255, 255, 0.2)' : 'rgba(64, 7, 99, 0.1)'
+                        }}>
                         <div className="flex flex-col space-y-2">
-                            {['Home', 'Events', ...(currentUser ? ['My Tickets'] : [])].map(item => (
+                            {['Home', 'Events', 'Scanner', ...(currentUser ? ['My Tickets'] : [])].map(item => (
                                 <Link key={item}
                                     to={item === 'Home' ? '/' : item === 'My Tickets' ? '/my-tickets' : `/${item.toLowerCase()}`}
                                     className="px-4 py-2 font-medium rounded-lg transition-colors hover:bg-white/10"

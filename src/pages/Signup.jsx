@@ -38,7 +38,7 @@ export default function Signup() {
                 </div>
 
                 {/* Signup Form */}
-                <div className="glass-card">
+                <div className="glass-card shadow-xl rounded-2xl p-6 sm:p-8 border border-white/50">
                     {error && (
                         <div className="alert-error mb-4">
                             {error}
