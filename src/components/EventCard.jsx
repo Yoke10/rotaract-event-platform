@@ -28,7 +28,7 @@ function fmtDate(dateStr) {
     } catch { return dateStr; }
 }
 
-export default function EventCard({ event }) {
+const EventCard = React.memo(function EventCard({ event }) {
     const price = getPriceSummary(event);
     const isFree = price === 'Free';
 
@@ -94,4 +94,6 @@ export default function EventCard({ event }) {
             </div>
         </Link>
     );
-}
+});
+
+export default EventCard;

@@ -125,6 +125,8 @@ export default function EventDetails() {
                                 <img
                                     src={event.landscapePosterURL}
                                     alt={event.name}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover object-center"
                                 />
                             </div>
@@ -218,6 +220,23 @@ export default function EventDetails() {
                                 </div>
                             </div>
                         )}
+                        {/* Additional Info (Event-level Custom Fields) */}
+                        {event.customFields?.filter(f => f.displayLocation === 'event').length > 0 && (
+                            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-2 mb-5">
+                                    <FileText className="w-5 h-5" style={{ color: '#400763' }} />
+                                    <h2 className="text-base font-bold" style={{ color: '#1a1a1a' }}>Additional Info</h2>
+                                </div>
+                                <div className="space-y-4">
+                                    {event.customFields.filter(f => f.displayLocation === 'event').map((field, i) => (
+                                        <div key={i} className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 py-3 border-b border-gray-50 last:border-0">
+                                            <span className="text-sm font-semibold text-gray-800 sm:w-1/3">{field.label}</span>
+                                            <span className="text-sm text-gray-600 sm:w-2/3">{field.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Amenities */}
                         {hasComforts && (
@@ -288,6 +307,8 @@ export default function EventDetails() {
                             {!event.landscapePosterURL && event.posterURL && (
                                 <div style={{ aspectRatio: '3/4', maxHeight: '280px', overflow: 'hidden' }}>
                                     <img src={event.posterURL} alt={event.name}
+                                        loading="lazy"
+                                        decoding="async"
                                         className="w-full h-full object-cover" />
                                 </div>
                             )}
@@ -468,16 +489,7 @@ export default function EventDetails() {
             </div>
 
             {/* ── Sticky bottom CTA — mobile only ── */}
-            {!isClosed && !isSoldOut && (
-                <div className="fixed bottom-0 inset-x-0 lg:hidden z-50 px-4 pb-4 pt-2"
-                    style={{ background: 'linear-gradient(to top, rgba(247,247,249,0.98) 70%, transparent)' }}>
-                    <Link to={`/booking/${event.id}`}
-                        className="btn-primary w-full justify-center py-4 text-base shadow-xl">
-                        <Lock className="w-4 h-4" />
-                        {isFree ? 'Register Now — Free' : 'Book Tickets →'}
-                    </Link>
-                </div>
-            )}
+            {/* Removed sticky mobile button as per user request */}
         </div>
     );
 }

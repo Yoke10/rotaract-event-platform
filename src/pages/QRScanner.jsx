@@ -4,13 +4,11 @@ import { eventService } from '../services/eventService';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   CheckCircle, XCircle, AlertCircle, Loader2, ArrowLeft, Lock,
-  Camera, CameraOff, RefreshCw, SwitchCamera, Scan, ChevronRight, X
+  Camera, CameraOff, RefreshCw, SwitchCamera, Scan, ChevronRight, X, WifiOff
 } from 'lucide-react';
 
 const SCANNER_ID = 'qr-scanner-viewport';
-// The global Navbar is fixed at top:0 and is h-16 (64px).
-// All sticky/fixed elements inside the scanner must offset by 64px.
-const NAV_H = 64;
+const NAV_H = 0;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function InfoRow({ label, value, accent, mono }) {
@@ -55,9 +53,53 @@ const CAMERA_CSS = `
 }
 `;
 
+// ─── Adaptive FPS based on network speed ──────────────────────────────────
+function getAdaptiveFps() {
+  try {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!conn) return 12;
+    const type = conn.effectiveType;
+    if (type === '4g') return 15;
+    if (type === '3g') return 10;
+    return 7; // 2g / slow-2g / unknown
+  } catch {
+    return 12;
+  }
+}
+
+// ─── Exponential backoff retry helper ─────────────────────────────────────
+async function withRetry(fn, maxAttempts = 3, baseDelayMs = 800) {
+  let lastError;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ─── Offline indicator ─────────────────────────────────────────────────────
+function useIsOnline() {
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  return online;
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 export default function QRScanner() {
   const navigate = useNavigate();
+  const isOnline = useIsOnline();
 
   // Auth state
   const [accessCode, setAccessCode] = useState('');
@@ -84,6 +126,9 @@ export default function QRScanner() {
   const [scanError, setScanError] = useState(null);
   const [scanLoading, setScanLoading] = useState(false);
 
+  // Retry state feedback
+  const [retryCount, setRetryCount] = useState(0);
+
   const qrRef = useRef(null);
   const scanningRef = useRef(false);
 
@@ -98,6 +143,16 @@ export default function QRScanner() {
   // Cleanup on unmount
   useEffect(() => () => { stopCamera(); }, []);
 
+  // Stop camera when offline, auto-resume when back online
+  useEffect(() => {
+    if (!isOnline && cameraState === 'active') {
+      stopCamera();
+    }
+    if (isOnline && isAccessGranted && selectedCategory && cameraState === 'idle') {
+      requestCameraAccess();
+    }
+  }, [isOnline]);
+
   // Auto-start camera when scanner view is active
   useEffect(() => {
     if (isAccessGranted && selectedCategory && cameraState === 'idle') {
@@ -111,7 +166,7 @@ export default function QRScanner() {
     setAuthLoading(true);
     setAuthError('');
     try {
-      const events = await eventService.getAllEvents();
+      const events = await withRetry(() => eventService.getAllEvents(), 3);
       const input = accessCode.trim().toUpperCase();
       const event = events.find(ev => ev.accessCode?.trim().toUpperCase() === input);
       if (event) {
@@ -127,7 +182,9 @@ export default function QRScanner() {
         setAuthError('Invalid access code. Please try again.');
       }
     } catch {
-      setAuthError('Connection error. Please try again.');
+      setAuthError(isOnline
+        ? 'Verification failed. Please try again.'
+        : 'No internet connection. Please connect and retry.');
     } finally {
       setAuthLoading(false);
     }
@@ -167,10 +224,11 @@ export default function QRScanner() {
         verbose: false,
       });
       qrRef.current = scanner;
+      const fps = getAdaptiveFps();
       await scanner.start(
         cameraId,
         {
-          fps: 15,
+          fps,
           qrbox: (w, h) => {
             const side = Math.floor(Math.min(w, h) * 0.65);
             return { width: side, height: side };
@@ -236,41 +294,68 @@ export default function QRScanner() {
     await startCamera(cameras[next].id);
   };
 
-  // ── Scan handler ──────────────────────────────────────────────────────────
+  // ── Scan handler (online-only) ────────────────────────────────────────────
   const handleScan = async (raw) => {
+    // Hard block if offline — prevents any data loss
+    if (!navigator.onLine) {
+      scanningRef.current = false;
+      return;
+    }
     setScanLoading(true);
     setScanError(null);
     setScanResult(null);
+    setRetryCount(0);
+
     try {
       const trimmed = (raw || '').trim();
       if (!trimmed.startsWith('TKT_') || trimmed.split('_').length < 3)
         throw new Error('Not a valid event ticket QR code.');
-      const ticket = await eventService.getTicketById(trimmed);
+
       const liveEvent = activeEventRef.current;
+      const cat = (selectedCategoryRef.current || 'Entry').trim();
+
+      // ── Network path with retry ──────────────────────────────
+      const ticket = await withRetry(
+        () => eventService.getTicketById(trimmed),
+        3,
+        600,
+      );
       const tId = String(ticket?.eventId || '').trim();
       const aId = String(liveEvent?.id || '').trim();
       if (!ticket || !liveEvent || tId !== aId)
         throw new Error('Ticket does not belong to this event.');
+
       if (ticket.status && ticket.status !== 'valid') {
         setScanError({ type: 'INVALID_STATUS', message: 'Ticket Invalid', details: 'Status: ' + ticket.status, ticket });
         return;
       }
-      const cat = (selectedCategoryRef.current || 'Entry').trim();
       if (ticket.scans?.[cat]) {
         setScanError({ type: 'ALREADY_SCANNED', message: 'Already Checked In', details: 'Checked in at ' + new Date(ticket.scans[cat]).toLocaleTimeString(), ticket });
         return;
       }
-      const result = await eventService.markTicketScanned(ticket.firestoreId, cat);
+
+      const result = await withRetry(
+        () => eventService.markTicketScanned(ticket.firestoreId, cat),
+        3,
+        600,
+      );
+
       setScanResult({ type: 'SUCCESS', ticket: { ...ticket, ...result }, scannedCategory: cat });
     } catch (err) {
-      setScanError({ type: 'ERROR', message: 'Scan Failed', details: err.message || 'Unknown error.' });
+      setScanError({
+        type: 'ERROR',
+        message: !navigator.onLine ? 'Connection Lost' : 'Scan Failed',
+        details: !navigator.onLine
+          ? 'Internet disconnected. Reconnect to continue scanning.'
+          : (err.message || 'Unknown error.'),
+      });
     } finally {
       setScanLoading(false);
       scanningRef.current = false;
     }
   };
 
-  const resetScan = () => { setScanResult(null); setScanError(null); scanningRef.current = false; };
+  const resetScan = () => { setScanResult(null); setScanError(null); scanningRef.current = false; setRetryCount(0); };
   const changeEvent = async () => {
     await stopCamera();
     setIsAccess(false);
@@ -288,6 +373,15 @@ export default function QRScanner() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8"
         style={{ background: '#f7f7f9', paddingTop: `${NAV_H + 32}px` }}>
+
+        {/* Offline warning */}
+        {!isOnline && (
+          <div className="w-full max-w-sm mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-4 py-2.5 rounded-xl">
+            <WifiOff className="w-4 h-4 shrink-0" />
+            You are offline — connect to verify an event code
+          </div>
+        )}
+
         <div className="w-full max-w-sm">
           {/* Brand header */}
           <div className="text-center mb-6">
@@ -328,7 +422,7 @@ export default function QRScanner() {
                 </div>
               )}
 
-              <button type="submit" disabled={authLoading || !accessCode.trim()} className="btn-primary w-full py-3 text-sm">
+              <button type="submit" disabled={authLoading || !accessCode.trim() || !isOnline} className="btn-primary w-full py-3 text-sm">
                 {authLoading
                   ? <><Loader2 className="w-4 h-4 animate-spin" />Verifying…</>
                   : <><Lock className="w-4 h-4" />Unlock Scanner</>}
@@ -404,32 +498,60 @@ export default function QRScanner() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f7f7f9', paddingTop: `${NAV_H}px` }}>
 
-      {/* ── Sub-header: sits immediately below the global Navbar ─────────── */}
-      <header className="sticky z-40 bg-white border-b border-gray-100 shadow-sm"
-        style={{ top: `${NAV_H}px` }}>
-        <div className="max-w-xl mx-auto flex items-center justify-between px-4 h-12">
-          <div className="min-w-0 flex-1 mr-3">
-            <p className="text-xs font-bold uppercase tracking-widest leading-none"
-              style={{ color: '#ed0775' }}>Live Scanning</p>
-            <p className="text-sm font-extrabold text-gray-900 truncate leading-snug">
-              {activeEvent.name}
-            </p>
+      {/* ── Header — premium dark bar ───────────────────────────────────── */}
+      <header className="relative z-40 shrink-0"
+        style={{ background: 'linear-gradient(135deg, #1a0030 0%, #400763 60%, #680b56 100%)' }}>
+
+        {/* Offline banner */}
+        {!isOnline && (
+          <div className="flex items-center justify-center gap-2 bg-amber-500 text-white text-xs font-bold py-1.5 px-4">
+            <WifiOff className="w-3.5 h-3.5" />
+            Offline — scanning disabled to prevent data loss
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
-              style={{ background: '#400763' }}>
+        )}
+
+        <div className="max-w-xl mx-auto px-4 pt-4 pb-3">
+          {/* Top row: station badge + actions */}
+          <div className="flex items-center justify-between mb-3">
+            {/* Station */}
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-widest text-white/60">Live Scanning</span>
+            </div>
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { stopCamera(); setSelectedCategory(''); }}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}>
+                <SwitchCamera className="w-3.5 h-3.5" />
+                Change
+              </button>
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all"
+                style={{ background: 'rgba(239,68,68,0.85)', color: '#fff', backdropFilter: 'blur(8px)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.85)'}>
+                <X className="w-3.5 h-3.5" />
+                Exit
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom row: event name + station pill */}
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-white font-extrabold text-lg leading-tight truncate">
+                {activeEvent.name}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full text-white"
+              style={{ background: 'rgba(237,7,117,0.85)', backdropFilter: 'blur(8px)' }}>
               {selectedCategory}
             </span>
-            <button
-              onClick={() => { stopCamera(); setSelectedCategory(''); }}
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
-              Change
-            </button>
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
-              <X className="w-3.5 h-3.5" />Exit
-            </button>
           </div>
         </div>
       </header>
@@ -439,15 +561,6 @@ export default function QRScanner() {
 
         {/* ── Camera card ─────────────────────────────────────────────────── */}
         <div className="card-elevated rounded-2xl overflow-hidden">
-
-          {/*
-            CAMERA VIEWPORT:
-            - Always in DOM so html5-qrcode can mount its <video> element.
-            - We force it square with aspect-ratio:1/1 and let the injected CSS
-              make the inner <video> cover the square area.
-            - On mobile the square fills the full card width.
-            - On larger screens we cap it at 360px.
-          */}
           <div
             id={SCANNER_ID}
             style={{
@@ -463,11 +576,23 @@ export default function QRScanner() {
             }}
           />
 
-          {/* State overlay (shown instead of the camera when not active) */}
+          {/* State overlay */}
           {cameraState !== 'active' && (
             <div className="flex flex-col items-center justify-center text-center px-6 py-10 gap-4">
-
-              {cameraState === 'idle' && (
+              {/* Offline blocker — takes priority over all other states */}
+              {!isOnline ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
+                    <WifiOff className="w-7 h-7 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-amber-700">No Internet Connection</p>
+                    <p className="text-xs text-gray-500 mt-1 max-w-xs">
+                      Scanning is disabled while offline to prevent data loss. Scanning will resume automatically when connection is restored.
+                    </p>
+                  </div>
+                </>
+              ) : cameraState === 'idle' ? (
                 <>
                   <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center">
                     <Camera className="w-7 h-7 text-gray-300" />
@@ -480,8 +605,7 @@ export default function QRScanner() {
                     <Camera className="w-4 h-4" />Start Camera
                   </button>
                 </>
-              )}
-
+              ) : null}
               {cameraState === 'requesting' && (
                 <>
                   <Loader2 className="w-9 h-9 animate-spin" style={{ color: '#680b56' }} />
@@ -491,7 +615,6 @@ export default function QRScanner() {
                   </div>
                 </>
               )}
-
               {cameraState === 'denied' && (
                 <>
                   <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
@@ -500,8 +623,7 @@ export default function QRScanner() {
                   <div>
                     <p className="text-sm font-bold text-red-600">Camera Access Denied</p>
                     <p className="text-xs text-gray-500 mt-1 max-w-xs">
-                      {cameraError} Click the 🔒 icon in your browser address
-                      bar → set Camera to Allow → tap Try Again.
+                      {cameraError} Click the 🔒 icon in your browser address bar → set Camera to Allow → tap Try Again.
                     </p>
                   </div>
                   <button onClick={requestCameraAccess} className="btn-secondary text-sm py-2 px-5">
@@ -509,7 +631,6 @@ export default function QRScanner() {
                   </button>
                 </>
               )}
-
               {cameraState === 'error' && (
                 <>
                   <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center">
@@ -527,7 +648,7 @@ export default function QRScanner() {
             </div>
           )}
 
-          {/* Camera bottom controls bar */}
+          {/* Camera controls bar */}
           {cameraState === 'active' && (
             <div className="flex items-center justify-between px-4 py-2 bg-white border-t border-gray-100">
               <p className="text-xs text-gray-400">Point at a ticket QR code</p>
@@ -563,11 +684,13 @@ export default function QRScanner() {
             </div>
           )}
 
-          {/* Loading */}
+          {/* Loading with retry indicator */}
           {scanLoading && (
             <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
               <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#680b56' }} />
-              <p className="text-sm font-semibold text-gray-700">Verifying ticket…</p>
+              <p className="text-sm font-semibold text-gray-700">
+                Verifying ticket{retryCount > 0 ? ` (retry ${retryCount})…` : '…'}
+              </p>
             </div>
           )}
 
@@ -586,14 +709,12 @@ export default function QRScanner() {
                 </div>
                 <StatusBadge type="SUCCESS" />
               </div>
-
               <div className="bg-gray-50 rounded-xl px-4 py-0.5">
                 <InfoRow label="Name" value={scanResult.ticket.participantName} />
                 <InfoRow label="Club" value={scanResult.ticket.participantClub || '—'} />
                 <InfoRow label="Station" value={selectedCategory} accent />
                 <InfoRow label="Ticket" value={(scanResult.ticket.ticketId || '').slice(0, 18) + '…'} mono />
               </div>
-
               <button onClick={resetScan} className="btn-primary w-full py-2.5 text-sm">
                 Scan Next Ticket
               </button>
@@ -606,7 +727,12 @@ export default function QRScanner() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${scanError.type === 'ALREADY_SCANNED' ? 'bg-amber-50' : 'bg-red-50'}`}>
-                    <XCircle className={`w-5 h-5 ${scanError.type === 'ALREADY_SCANNED' ? 'text-amber-600' : 'text-red-600'}`} />
+                    {scanError.type === 'ALREADY_SCANNED'
+                      ? <XCircle className="w-5 h-5 text-amber-600" />
+                      : !isOnline
+                        ? <WifiOff className="w-5 h-5 text-red-500" />
+                        : <XCircle className="w-5 h-5 text-red-500" />
+                    }
                   </div>
                   <div className="min-w-0">
                     <p className={`text-sm font-extrabold leading-tight ${scanError.type === 'ALREADY_SCANNED' ? 'text-amber-700' : 'text-red-700'}`}>

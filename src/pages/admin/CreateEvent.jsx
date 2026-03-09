@@ -153,6 +153,10 @@ export default function CreateEvent() {
     const [newFieldLabel, setNewFieldLabel] = useState('');
     const [newFieldType, setNewFieldType] = useState('text');
     const [newFieldRequired, setNewFieldRequired] = useState(false);
+    const [newFieldOptions, setNewFieldOptions] = useState(''); // comma-separated
+    const [newFieldDisplayLocation, setNewFieldDisplayLocation] = useState('participant'); // event | booking | participant
+    const [newFieldValue, setNewFieldValue] = useState('');
+    const [showCustomFieldModal, setShowCustomFieldModal] = useState(false);
 
     const {
         register, control, handleSubmit, watch, trigger, reset,
@@ -278,27 +282,41 @@ export default function CreateEvent() {
         } catch { return true; }
     };
 
-    const nextStep = async () => {
-        let valid = false;
-        if (currentStep === 1) {
-            valid = await trigger(['name', 'date', 'time', 'location', 'description']);
-        } else if (currentStep === 2) {
-            const fields = ['accessCode', 'registrationCloseDate', 'hostUsername', 'hostPassword'];
-            if (enableTicketModule && !enableTicketTiers && !enablePricingCategories) {
-                fields.push('ticketPrice');
-            }
-            valid = await trigger(fields);
-            if (valid) valid = await validateAccessCode(watch('accessCode'));
-        } else {
-            valid = true;
-        }
-        if (valid && currentStep < STEPS.length) {
-            setCurrentStep(p => p + 1);
+    const handleStepClick = async (targetStep) => {
+        if (targetStep === currentStep) return;
+
+        if (targetStep < currentStep) {
+            setCurrentStep(targetStep);
             window.scrollTo(0, 0);
+            return;
         }
+
+        let currentValid = true;
+        for (let s = currentStep; s < targetStep; s++) {
+            let valid = true;
+            if (s === 1) {
+                valid = await trigger(['name', 'date', 'time', 'location', 'description']);
+            } else if (s === 2) {
+                const fields = ['accessCode', 'registrationCloseDate', 'hostUsername', 'hostPassword'];
+                if (enableTicketModule && !enableTicketTiers && !enablePricingCategories) {
+                    fields.push('ticketPrice');
+                }
+                valid = await trigger(fields);
+                if (valid) valid = await validateAccessCode(watch('accessCode'));
+            }
+
+            if (!valid) {
+                setCurrentStep(s);
+                return;
+            }
+        }
+
+        setCurrentStep(targetStep);
+        window.scrollTo(0, 0);
     };
 
-    const prevStep = () => { setCurrentStep(p => p - 1); window.scrollTo(0, 0); };
+    const nextStep = () => handleStepClick(currentStep + 1);
+    const prevStep = () => handleStepClick(currentStep - 1);
 
     const onSubmit = async (data) => {
         // In create mode: only submit on the final step.
@@ -436,11 +454,13 @@ export default function CreateEvent() {
                         const isActive = currentStep >= step.id;
                         const isCurrent = currentStep === step.id;
                         return (
-                            <div key={step.id} className="flex flex-col items-center px-2 relative z-10">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-400'}`}>
+                            <div key={step.id}
+                                onClick={() => handleStepClick(step.id)}
+                                className="flex flex-col items-center px-2 relative z-10 cursor-pointer group">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-200 group-hover:scale-110 group-hover:shadow-md ${isCurrent ? 'ring-4 ring-indigo-100 ring-offset-2' : ''} ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-400'}`}>
                                     {isActive && !isCurrent ? <Check className="w-6 h-6" /> : <Icon className="w-5 h-5" />}
                                 </div>
-                                <span className={`mt-2 text-xs font-medium ${isCurrent ? 'text-indigo-600' : 'text-gray-500'}`}>{step.name}</span>
+                                <span className={`mt-2 text-xs font-medium transition-colors ${isCurrent ? 'text-indigo-600' : 'text-gray-500 group-hover:text-indigo-500'}`}>{step.name}</span>
                             </div>
                         );
                     })}
@@ -1007,7 +1027,19 @@ export default function CreateEvent() {
                                             <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border">
                                                 <div>
                                                     <p className="font-medium text-gray-800 text-sm">{field.label}</p>
-                                                    <p className="text-xs text-gray-500">Type: {field.type} | {field.required ? 'Required' : 'Optional'}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        {field.displayLocation === 'event' ? (
+                                                            <>Value: <strong>{field.value}</strong></>
+                                                        ) : (
+                                                            <>Type: {field.type} | {field.required ? 'Required' : 'Optional'}</>
+                                                        )}
+                                                        {field.options && field.options.length > 0 && field.displayLocation !== 'event' && (
+                                                            <span className="ml-1">| Options: {Array.isArray(field.options) ? field.options.join(', ') : field.options}</span>
+                                                        )}
+                                                        <span className="ml-2 px-1.5 py-0.5 rounded bg-gray-100 text-[10px] font-bold uppercase tracking-wider">
+                                                            Loc: {field.displayLocation === 'event' ? 'Event Info' : field.displayLocation === 'booking' ? 'Booking Form' : 'Participant Details'}
+                                                        </span>
+                                                    </p>
                                                 </div>
                                                 <button type="button" onClick={() => setCustomFields(p => p.filter((_, j) => j !== i))}
                                                     className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg">
@@ -1018,85 +1050,68 @@ export default function CreateEvent() {
                                     </div>
                                 )}
 
-                                <div className="border rounded-xl p-4 bg-gray-50">
-                                    <h3 className="font-semibold text-gray-800 mb-4 text-sm">Add New Field</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className={lbl}>Field Label</label>
-                                            <input type="text" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)}
-                                                placeholder="e.g., T-Shirt Size" className={inp} />
-                                        </div>
-                                        <div>
-                                            <label className={lbl}>Field Type</label>
-                                            <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} className={inp}>
-                                                <option value="text">Text</option>
-                                                <option value="number">Number</option>
-                                                <option value="email">Email</option>
-                                                <option value="date">Date</option>
-                                                <option value="checkbox">Checkbox</option>
-                                                <option value="select">Dropdown</option>
-                                            </select>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <input type="checkbox" id="fieldReq" checked={newFieldRequired}
-                                                onChange={e => setNewFieldRequired(e.target.checked)}
-                                                className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
-                                            <label htmlFor="fieldReq" className="text-sm text-gray-700">Required field</label>
-                                        </div>
-                                        <div className="flex items-end">
-                                            <button type="button"
-                                                onClick={() => {
-                                                    if (newFieldLabel.trim()) {
-                                                        setCustomFields(p => [...p, { label: newFieldLabel.trim(), type: newFieldType, required: newFieldRequired }]);
-                                                        setNewFieldLabel(''); setNewFieldType('text'); setNewFieldRequired(false);
-                                                    }
-                                                }}
-                                                className="w-full px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm flex items-center justify-center gap-2">
-                                                <Plus className="w-4 h-4" /> Add Field
-                                            </button>
-                                        </div>
+
+                                {customFields.length === 0 && (
+                                    <div className="text-center py-4 text-gray-400">
+                                        <p className="text-sm">No custom fields yet. Click the <strong>+ Custom Field</strong> button below to add one.</p>
                                     </div>
-                                </div>
+                                )}
                             </ModuleSection>
                         </div>
                     )}
                 </div>
 
-                {/* Footer */}
-                <div className="bg-gray-50 px-8 py-5 flex justify-between items-center border-t border-gray-100">
-                    <div className="flex gap-3 items-center">
-                        <button type="button" onClick={prevStep} disabled={currentStep === 1}
-                            className={`flex items-center px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentStep === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-200'}`}>
-                            <ChevronLeft className="w-4 h-4 mr-2" /> Back
+                {/* Footer Controls */}
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 sm:px-8 py-4 z-40 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+
+                    {/* Add Custom Field Button (Persistent) */}
+                    <div className="flex justify-center sm:justify-start">
+                        <button type="button" onClick={() => { setEnableCustomFields(true); setShowCustomFieldModal(true); }}
+                            className="flex items-center bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors border border-indigo-200 shadow-sm">
+                            <Plus className="w-4 h-4 mr-2" /> Custom Field
                         </button>
-                        {id && (
-                            <>
-                                <button type="button" onClick={() => navigate('/admin/dashboard')}
-                                    className="flex items-center px-5 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
-                                    Cancel Edit
-                                </button>
-                                {/* Save button right next to Cancel when editing */}
-                                <button type="submit" disabled={loading}
-                                    className={`flex items-center bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
-                                    {loading ? 'Saving...' : 'Update Event'}
-                                    {!loading && <Check className="w-4 h-4 ml-2" />}
-                                </button>
-                            </>
-                        )}
                     </div>
 
-                    {currentStep < STEPS.length ? (
-                        <button type="button" onClick={nextStep}
-                            className="flex items-center bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all">
-                            Next Step <ChevronRight className="w-4 h-4 ml-2" />
+                    <div className="flex flex-wrap justify-end gap-3 items-center w-full sm:w-auto">
+                        <button type="button" onClick={prevStep} disabled={currentStep === 1}
+                            className={`flex flex-1 sm:flex-none items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentStep === 1 ? 'text-gray-300 cursor-not-allowed bg-gray-50' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 shadow-sm'}`}>
+                            <ChevronLeft className="w-4 h-4 mr-1.5" /> Back
                         </button>
-                    ) : !id ? (
-                        <button type="submit" disabled={loading}
-                            className={`flex items-center bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
-                            {loading ? 'Saving...' : 'Create Event'}
-                            {!loading && <Check className="w-4 h-4 ml-2" />}
-                        </button>
-                    ) : null}
+
+                        {id && (
+                            <button type="button" onClick={() => navigate('/admin/dashboard')}
+                                className="flex flex-1 sm:flex-none items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 shadow-sm transition-colors">
+                                Cancel
+                            </button>
+                        )}
+
+                        {currentStep < STEPS.length ? (
+                            <div className="flex flex-1 sm:flex-none gap-2 w-full sm:w-auto">
+                                {id && (
+                                    <button type="button" onClick={handleSubmit(onSubmit)} disabled={loading}
+                                        className={`flex flex-1 sm:flex-none items-center justify-center bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
+                                        {loading ? 'Saving...' : 'Update'}
+                                    </button>
+                                )}
+                                <button type="button" onClick={nextStep}
+                                    className="flex flex-1 sm:flex-none items-center justify-center bg-gray-900 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-black shadow-md transition-all">
+                                    Next <ChevronRight className="w-4 h-4 ml-1.5" />
+                                </button>
+                            </div>
+                        ) : !id ? (
+                            <button type="button" onClick={handleSubmit(onSubmit)} disabled={loading}
+                                className={`flex flex-1 sm:flex-none items-center justify-center bg-indigo-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-md transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
+                                {loading ? 'Creating...' : 'Launch Event'}
+                                {!loading && <Check className="w-4 h-4 ml-1.5" />}
+                            </button>
+                        ) : (
+                            <button type="button" onClick={handleSubmit(onSubmit)} disabled={loading}
+                                className={`flex flex-1 sm:flex-none items-center justify-center bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 shadow-md transition-all ${loading ? 'opacity-70 cursor-wait' : ''}`}>
+                                {loading ? 'Saving...' : 'Update Event'}
+                                {!loading && <Check className="w-4 h-4 ml-1.5" />}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </form>
 
@@ -1106,6 +1121,154 @@ export default function CreateEvent() {
                     <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl flex flex-col items-center gap-3">
                         <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
                         <p className="text-sm font-semibold text-gray-700">{uploadProgress}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Field Modal */}
+            {showCustomFieldModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">New Custom Field</h3>
+                                <p className="text-xs text-gray-500 mt-1">Ask attendees for additional information</p>
+                            </div>
+                            <button type="button" onClick={() => setShowCustomFieldModal(false)}
+                                className="text-gray-400 hover:text-gray-600 bg-white hover:bg-gray-100 p-2 rounded-full shadow-sm transition-all border border-gray-200">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh]">
+                            <div>
+                                <label className={lbl}>Field Label / Question</label>
+                                <input type="text" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)}
+                                    placeholder="e.g., T-Shirt Size, College Name" className={inp} autoFocus />
+                            </div>
+
+                            {newFieldDisplayLocation !== 'event' ? (
+                                <>
+                                    <div>
+                                        <label className={lbl}>Field Type</label>
+                                        <select value={newFieldType} onChange={e => { setNewFieldType(e.target.value); setNewFieldOptions(''); }} className={inp}>
+                                            <option value="text">Text Input</option>
+                                            <option value="number">Number</option>
+                                            <option value="email">Email</option>
+                                            <option value="date">Date</option>
+                                            <option value="select">Dropdown (select one)</option>
+                                            <option value="checkbox">Checkbox Options</option>
+                                            <option value="textarea">Long Text</option>
+                                        </select>
+                                    </div>
+
+                                    {(newFieldType === 'select' || newFieldType === 'checkbox') && (
+                                        <div>
+                                            <label className={lbl}>Options <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+                                            <input type="text" value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)}
+                                                placeholder="e.g., S, M, L, XL, XXL" className={inp} />
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {newFieldType === 'select' ? 'Attendee will pick one from the dropdown.' : 'Attendee can check multiple.'}
+                                            </p>
+                                            {newFieldOptions && (
+                                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                                    {newFieldOptions.split(',').map((opt, i) => opt.trim() && (
+                                                        <span key={i} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+                                                            {opt.trim()}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div>
+                                    <label className={lbl}>Information / Value</label>
+                                    <input type="text" value={newFieldValue} onChange={e => setNewFieldValue(e.target.value)}
+                                        placeholder="e.g., Formal Wear, Allowed, Yes" className={inp} />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        This value will be displayed directly on the event details page.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className={lbl}>Display Location</label>
+                                <select value={newFieldDisplayLocation} onChange={e => setNewFieldDisplayLocation(e.target.value)} className={inp}>
+                                    <option value="participant">Ask per Participant (e.g. T-Shirt Size)</option>
+                                    <option value="booking">Ask during Booking (e.g. College Name/Referral)</option>
+                                    <option value="event">Show on Event Details Page (Information only)</option>
+                                </select>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Determines where this field is shown in the platform.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" id="modalFieldReq" checked={newFieldRequired}
+                                    onChange={e => setNewFieldRequired(e.target.checked)}
+                                    disabled={newFieldDisplayLocation === 'event'}
+                                    className="rounded border-gray-300 text-indigo-600 h-4 w-4 disabled:opacity-50" />
+                                <label htmlFor="modalFieldReq" className="text-sm text-gray-700">Required field</label>
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6 flex gap-3">
+                            <button type="button" onClick={() => setShowCustomFieldModal(false)}
+                                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="button"
+                                disabled={!newFieldLabel.trim() ||
+                                    (newFieldDisplayLocation !== 'event' && (newFieldType === 'select' || newFieldType === 'checkbox') && !newFieldOptions.trim()) ||
+                                    (newFieldDisplayLocation === 'event' && !newFieldValue.trim())
+                                }
+                                onClick={() => {
+                                    const opts = (newFieldType === 'select' || newFieldType === 'checkbox') && newFieldDisplayLocation !== 'event'
+                                        ? newFieldOptions.split(',').map(o => o.trim()).filter(Boolean)
+                                        : [];
+                                    setCustomFields(p => [...p, {
+                                        label: newFieldLabel.trim(),
+                                        type: newFieldDisplayLocation === 'event' ? null : newFieldType,
+                                        required: newFieldDisplayLocation === 'event' ? false : newFieldRequired,
+                                        options: opts,
+                                        displayLocation: newFieldDisplayLocation,
+                                        value: newFieldDisplayLocation === 'event' ? newFieldValue.trim() : undefined,
+                                    }]);
+
+                                    setNewFieldLabel('');
+                                    setNewFieldType('text');
+                                    setNewFieldRequired(false);
+                                    setNewFieldOptions('');
+                                    setNewFieldValue('');
+                                    setNewFieldDisplayLocation('participant');
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <Plus className="w-4 h-4" /> Add Field
+                            </button>
+                        </div>
+
+                        {customFields.length > 0 && (
+                            <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{customFields.length} field{customFields.length !== 1 ? 's' : ''} added</p>
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                    {customFields.map((f, i) => (
+                                        <div key={i} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+                                            <div>
+                                                <span className="font-semibold text-gray-700">{f.label}</span>
+                                                <span className="text-gray-400 ml-1.5">({f.displayLocation})</span>
+                                                {f.options && f.options.length > 0 && (
+                                                    <span className="text-gray-400 ml-1">· {Array.isArray(f.options) ? f.options.join(', ') : f.options}</span>
+                                                )}
+                                            </div>
+                                            <button type="button" onClick={() => setCustomFields(p => p.filter((_, j) => j !== i))}
+                                                className="text-red-400 hover:text-red-600 p-0.5">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

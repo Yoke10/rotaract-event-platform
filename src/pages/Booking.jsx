@@ -44,6 +44,7 @@ export default function Booking() {
     const [selectedTierIdx, setSelectedTierIdx] = useState(0);
     const [tierQty, setTierQty] = useState(1);
     const [flatQty, setFlatQty] = useState(1);
+    const [bookingCustomResponses, setBookingCustomResponses] = useState({});
 
     const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
@@ -124,7 +125,6 @@ export default function Booking() {
                     orderId: result.orderId, paymentStatus: 'SUCCESS',
                     bookingDate: new Date().toISOString(), status: 'confirmed',
                     createdAt: new Date().toISOString(), pricingMode,
-                    customFieldResponses: data.customFields || {},
                     // Extra event meta for ticket display
                     eventPosterURL: event.posterURL || event.landscapePosterURL || null,
                     eventDate: event.date || null,
@@ -144,15 +144,23 @@ export default function Booking() {
                         .filter((_, i) => parseInt(categoryQty[i]) > 0)
                         .map(c => c.categoryName).join(', ');
                 } else if (pricingMode === 'tiers') {
-                    const tier = event.ticketTiers[selectedTierIdx];
                     bookingBase.selectedTier = tier.tierName;
                     bookingBase.tierPrice = Number(tier.price);
                     bookingBase.selectionLabel = selectionLabel;
                     bookingBase.selectedCategory = tier.tierName;
                 }
+
+                // Attach order-level custom responses
+                if (Object.keys(bookingCustomResponses).length > 0) {
+                    bookingBase.customFieldResponses = bookingCustomResponses;
+                }
                 const createdBooking = await eventService.createBooking(bookingBase);
                 setTimeout(() => navigate('/participant-details', {
-                    state: { booking: { ...bookingBase, firestoreId: createdBooking.firestoreId }, paymentResult: result }
+                    state: {
+                        booking: { ...bookingBase, firestoreId: createdBooking.firestoreId },
+                        paymentResult: result,
+                        customFieldDefinitions: event.customFields || [],
+                    }
                 }), 1500);
             }
         } catch (error) {
@@ -275,36 +283,61 @@ export default function Booking() {
                                 </div>
                             </section>
 
-                            {/* ── Custom Fields ── */}
-                            {event.customFields && event.customFields.length > 0 && (
+
+                            {/* ── Order/Booking Level Custom Fields ── */}
+                            {event.customFields?.filter(f => f.displayLocation === 'booking').length > 0 && (
                                 <section className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
                                     <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: '#680b56' }}>
-                                        Additional Information
+                                        Additional Details
                                     </h2>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {event.customFields.map((field, i) => {
-                                            const key = `customFields.${field.label}`;
-                                            const isWide = field.type === 'checkbox' || field.type === 'textarea';
+                                    <div className="space-y-4">
+                                        {event.customFields.filter(f => f.displayLocation === 'booking').map((field, i) => {
+                                            const options = Array.isArray(field.options) ? field.options :
+                                                (typeof field.options === 'string' ? field.options.split(',').map(o => o.trim()).filter(Boolean) : []);
+
                                             return (
-                                                <div key={i} className={isWide ? 'sm:col-span-2' : ''}>
-                                                    <Field label={field.label} required={field.required} error={errors.customFields?.[field.label] && 'Required'}>
-                                                        {field.type === 'select' ? (
-                                                            <select {...register(key, { required: field.required })} className={inp} disabled={processing}>
-                                                                <option value="">Select…</option>
-                                                                {(field.options || '').split(',').map(o => o.trim()).filter(Boolean).map((o, j) => (
-                                                                    <option key={j} value={o}>{o}</option>
-                                                                ))}
-                                                            </select>
-                                                        ) : field.type === 'checkbox' ? (
-                                                            <label className="inline-flex items-center gap-2.5 cursor-pointer mt-1">
-                                                                <input type="checkbox" {...register(key, { required: field.required })} className="w-4 h-4 rounded accent-purple-800" disabled={processing} />
-                                                                <span className="text-sm" style={{ color: '#4a4a4a' }}>Yes</span>
-                                                            </label>
-                                                        ) : (
-                                                            <input type={field.type || 'text'} placeholder={field.label} {...register(key, { required: field.required })} className={inp} disabled={processing} />
-                                                        )}
-                                                    </Field>
-                                                </div>
+                                                <Field key={i} label={field.label} required={field.required}>
+                                                    {field.type === 'textarea' ? (
+                                                        <textarea required={field.required} rows={3} className={inp}
+                                                            value={bookingCustomResponses[field.label] || ''}
+                                                            onChange={e => setBookingCustomResponses(p => ({ ...p, [field.label]: e.target.value }))} />
+                                                    ) : field.type === 'select' ? (
+                                                        <select required={field.required} className={inp}
+                                                            value={bookingCustomResponses[field.label] || ''}
+                                                            onChange={e => setBookingCustomResponses(p => ({ ...p, [field.label]: e.target.value }))}>
+                                                            <option value="">Select an option</option>
+                                                            {options.map((opt, j) => (
+                                                                <option key={j} value={opt}>{opt}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : field.type === 'checkbox' ? (
+                                                        <div className="space-y-2 mt-2">
+                                                            {options.map((opt, j) => {
+                                                                const currentArr = bookingCustomResponses[field.label] || [];
+                                                                return (
+                                                                    <label key={j} className="flex items-center gap-2 cursor-pointer">
+                                                                        <input type="checkbox"
+                                                                            checked={currentArr.includes(opt)}
+                                                                            onChange={(e) => {
+                                                                                const isChecked = e.target.checked;
+                                                                                setBookingCustomResponses(p => {
+                                                                                    const arr = p[field.label] || [];
+                                                                                    if (isChecked) return { ...p, [field.label]: [...arr, opt] };
+                                                                                    return { ...p, [field.label]: arr.filter(x => x !== opt) };
+                                                                                });
+                                                                            }}
+                                                                            className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
+                                                                        <span className="text-sm text-gray-700">{opt}</span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <input type={field.type || 'text'} required={field.required} className={inp}
+                                                            value={bookingCustomResponses[field.label] || ''}
+                                                            onChange={e => setBookingCustomResponses(p => ({ ...p, [field.label]: e.target.value }))} />
+                                                    )}
+                                                </Field>
                                             );
                                         })}
                                     </div>
@@ -421,22 +454,6 @@ export default function Booking() {
                                 )}
                             </section>
 
-                            {/* ── Submit (visible on mobile above order summary) ── */}
-                            <button
-                                type="submit"
-                                disabled={processing || (paymentResult?.success) || computedTicketCount < 1}
-                                className="btn-primary w-full py-4 text-base lg:hidden"
-                            >
-                                {processing ? (
-                                    <><Loader2 className="w-5 h-5 animate-spin" />Processing…</>
-                                ) : paymentResult?.success ? (
-                                    <><CheckCircle className="w-5 h-5" />Redirecting…</>
-                                ) : computedTicketCount < 1 ? (
-                                    'Select at least one ticket'
-                                ) : (
-                                    `Pay ${computedTotal > 0 ? '\u20b9' + computedTotal : 'Free'} \u2192`
-                                )}
-                            </button>
                         </form>
                     </div>
 
@@ -449,7 +466,7 @@ export default function Booking() {
                         <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
                             {event.posterURL && (
                                 <div style={{ aspectRatio: '16/9', overflow: 'hidden' }}>
-                                    <img src={event.posterURL} alt={event.name} className="w-full h-full object-cover" />
+                                    <img src={event.posterURL} alt={event.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                 </div>
                             )}
                             <div className="p-4">
@@ -523,12 +540,12 @@ export default function Booking() {
                                 )}
                             </div>
 
-                            {/* Desktop submit */}
+                            {/* Submit Button (Now visible on both Mobile and Desktop) */}
                             <button
                                 type="button"
                                 onClick={handleSubmit(onProceedToPay)}
                                 disabled={processing || paymentResult?.success || computedTicketCount < 1}
-                                className="btn-primary w-full mt-4 py-3.5 text-sm hidden lg:inline-flex"
+                                className="btn-primary w-full mt-4 py-3.5 text-sm"
                             >
                                 {processing ? (
                                     <><Loader2 className="w-4 h-4 animate-spin" />Processing…</>
@@ -555,3 +572,4 @@ export default function Booking() {
         </div>
     );
 }
+

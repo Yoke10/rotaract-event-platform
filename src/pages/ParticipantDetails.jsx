@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { eventService } from '../services/eventService';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Loader2, ArrowRight, User, Mail, Phone, Ticket, CheckCircle2 } from 'lucide-react';
+import { Loader2, ArrowRight, User, Mail, Phone, Ticket, CheckCircle2, ChevronDown } from 'lucide-react';
 
 function Field({ label, required, error, children }) {
     return (
@@ -19,7 +19,8 @@ function Field({ label, required, error, children }) {
 export default function ParticipantDetails() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { booking, paymentResult } = location.state || {};
+    const { booking, paymentResult, customFieldDefinitions = [] } = location.state || {};
+    const participantCustomFields = customFieldDefinitions.filter(f => !f.displayLocation || f.displayLocation === 'participant');
     const initializedRef = useRef(false);
     const [generating, setGenerating] = useState(false);
 
@@ -192,6 +193,64 @@ export default function ParticipantDetails() {
                                     </div>
                                 </Field>
                             </div>
+
+                            {/* ── Per-participant Custom Fields ── */}
+                            {participantCustomFields.length > 0 && (
+                                <div className="mt-5 pt-4 border-t" style={{ borderColor: '#f0f0f0' }}>
+                                    <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#680b56' }}>Additional Details</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {participantCustomFields.map((cf, cfIdx) => {
+                                            const key = `participants.${index}.customFields.${cf.label}`;
+                                            const opts = Array.isArray(cf.options)
+                                                ? cf.options
+                                                : (typeof cf.options === 'string' && cf.options.trim()
+                                                    ? cf.options.split(',').map(o => o.trim()).filter(Boolean)
+                                                    : []);
+                                            const isWide = cf.type === 'checkbox' || cf.type === 'textarea';
+
+                                            return (
+                                                <div key={cfIdx} className={isWide ? 'sm:col-span-2' : ''}>
+                                                    <Field label={cf.label} required={cf.required}
+                                                        error={errors.participants?.[index]?.customFields?.[cf.label] && 'Required'}>
+                                                        {cf.type === 'select' ? (
+                                                            <div className="relative">
+                                                                <select {...register(key, { required: cf.required })} className={inp} disabled={generating}>
+                                                                    <option value="">Select…</option>
+                                                                    {opts.map((o, j) => (
+                                                                        <option key={j} value={o}>{o}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#aaa' }} />
+                                                            </div>
+                                                        ) : cf.type === 'checkbox' && opts.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-3 mt-1">
+                                                                {opts.map((o, j) => (
+                                                                    <label key={j} className="inline-flex items-center gap-2 cursor-pointer">
+                                                                        <input type="checkbox" value={o}
+                                                                            {...register(key)}
+                                                                            className="w-4 h-4 rounded accent-purple-800" disabled={generating} />
+                                                                        <span className="text-sm" style={{ color: '#4a4a4a' }}>{o}</span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        ) : cf.type === 'checkbox' ? (
+                                                            <label className="inline-flex items-center gap-2.5 cursor-pointer mt-1">
+                                                                <input type="checkbox" {...register(key)} className="w-4 h-4 rounded accent-purple-800" disabled={generating} />
+                                                                <span className="text-sm" style={{ color: '#4a4a4a' }}>Yes</span>
+                                                            </label>
+                                                        ) : cf.type === 'textarea' ? (
+                                                            <textarea placeholder={cf.label} rows={2} {...register(key, { required: cf.required })} className={inp} disabled={generating} />
+                                                        ) : (
+                                                            <input type={cf.type || 'text'} placeholder={cf.label}
+                                                                {...register(key, { required: cf.required })} className={inp} disabled={generating} />
+                                                        )}
+                                                    </Field>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
 
