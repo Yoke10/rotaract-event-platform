@@ -143,6 +143,7 @@ export const eventService = {
                     participantMobile: participant.mobile || null,
                     participantClub: participant.club || null,
                     category: participant.category || 'Standard',
+                    customFields: participant.customFields || null,
                     scanned: false,
                     scannedAt: null,
                     createdAt: new Date().toISOString(),

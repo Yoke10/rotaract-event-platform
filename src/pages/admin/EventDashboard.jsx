@@ -3,8 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { eventService } from '../../services/eventService';
 import {
     Users, QrCode, DollarSign, Calendar, ArrowLeft, ClipboardList,
-    X, Eye, CheckCircle, Clock, Phone, Mail, User, Tag, Shield
+    X, Eye, CheckCircle, Clock, Phone, Mail, User, Tag, Shield, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // ── Participant Details Modal ─────────────────────────────────────────────────
 function ParticipantModal({ booking, tickets, loading, onClose }) {
@@ -49,6 +50,20 @@ function ParticipantModal({ booking, tickets, loading, onClose }) {
                         <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Amount</p>
                         <p className="font-semibold text-indigo-600">₹{booking.totalAmount}</p>
                     </div>
+
+                    {booking.customFieldResponses && Object.keys(booking.customFieldResponses).length > 0 && (
+                        <div className="col-span-2 sm:col-span-4 mt-2 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Additional Booking Details</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {Object.entries(booking.customFieldResponses).map(([key, val]) => (
+                                    <div key={key}>
+                                        <p className="text-xs text-gray-500 mb-0.5">{key}</p>
+                                        <p className="text-sm font-medium text-gray-900">{Array.isArray(val) ? val.join(', ') : val?.toString() || '—'}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Participants / Tickets */}
@@ -141,6 +156,17 @@ function ParticipantModal({ booking, tickets, loading, onClose }) {
                                             </div>
                                         )}
                                     </div>
+
+                                    {ticket.customFields && Object.keys(ticket.customFields).length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-gray-100/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                            {Object.entries(ticket.customFields).map(([key, val]) => (
+                                                <div key={key} className="flex flex-col">
+                                                    <span className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-0.5">{key}</span>
+                                                    <span className="text-gray-800 font-medium">{Array.isArray(val) ? val.join(', ') : val?.toString() || '—'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -217,6 +243,93 @@ export default function EventDashboard({ isHostMode = false }) {
         } catch { return 'Error'; }
     };
 
+    const exportToExcel = async () => {
+        setLoading(true);
+        try {
+            // Flatten data: 1 row = 1 Ticket (Participant)
+            const exportData = [];
+
+            // We need to fetch all tickets to match with bookings
+            // Since `tickets` is already downloaded, we can cross-reference
+
+            tickets.forEach(ticket => {
+                // Find parent booking
+                const booking = registrations.find(b => b.firestoreId === ticket.bookingFirestoreId || b.id === ticket.bookingId) || {};
+
+                const row = {
+                    'Order ID': booking.orderId || 'N/A',
+                    'Booking Date': formatDate(booking.createdAt),
+                    'Booked By (Name)': booking.userName || 'N/A',
+                    'Booked By (Email)': booking.userEmail || 'N/A',
+                    'Booked By (Mobile)': booking.mobile || 'N/A',
+                    'Booking Club': booking.club || 'N/A',
+                    'Amount Paid (₹)': booking.totalAmount || 0,
+                    'Payment Status': booking.paymentStatus || booking.status || 'N/A',
+
+                    'Ticket ID': ticket.ticketId,
+                    'Participant Name': ticket.participantName || 'N/A',
+                    'Participant Email': ticket.participantEmail || 'N/A',
+                    'Participant Mobile': ticket.participantMobile || 'N/A',
+                    'Participant Club': ticket.participantClub || 'N/A',
+                    'Ticket Category': ticket.category || 'Standard',
+                };
+
+                // Add Scan/Check-in data for all categories
+                const scans = ticket.scans || {};
+
+                // If it's a legacy ticket without the scans map but has 'scanned: true'
+                if (ticket.scanned && !scans['Entry']) {
+                    scans['Entry'] = ticket.scannedAt;
+                }
+
+                // Append each available category from the overall event categories list
+                if (event.categories && event.categories.length > 0) {
+                    event.categories.forEach(cat => {
+                        row[`Check-in: ${cat}`] = scans[cat] ? formatDate(scans[cat]) + ' ' + new Date(scans[cat]).toLocaleTimeString() : 'Pending';
+                    });
+                } else {
+                    row[`Check-in: Entry`] = scans['Entry'] ? formatDate(scans['Entry']) + ' ' + new Date(scans['Entry']).toLocaleTimeString() : 'Pending';
+                }
+
+                // Add Booking-level custom fields
+                if (booking.customFieldResponses) {
+                    Object.entries(booking.customFieldResponses).forEach(([key, val]) => {
+                        row[`[Booking] ${key}`] = Array.isArray(val) ? val.join(', ') : val;
+                    });
+                }
+
+                // Add Participant-level custom fields
+                if (ticket.customFields) {
+                    Object.entries(ticket.customFields).forEach(([key, val]) => {
+                        row[`[Participant] ${key}`] = Array.isArray(val) ? val.join(', ') : val;
+                    });
+                }
+
+                exportData.push(row);
+            });
+
+            if (exportData.length === 0) {
+                alert("No registrations found to export.");
+                return;
+            }
+
+            // Generate Worksheet
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Registrations");
+
+            // Save file
+            const fileName = `${event.name.replace(/[^a-zA-Z0-9]/g, '_')}_Registrations.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+
+        } catch (error) {
+            console.error("Failed to export Excel:", error);
+            alert("An error occurred while exporting data.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     if (!event) return <div className="min-h-screen flex items-center justify-center">Event not found</div>;
 
@@ -253,7 +366,7 @@ export default function EventDashboard({ isHostMode = false }) {
                             <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">Code: {event.accessCode}</span>
                         </div>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                         {/* Only Admin can see the Edit button, not Event Hosts */}
                         {!isHostMode && (
                             <button onClick={() => navigate(`/admin/edit-event/${id}`)}
@@ -261,6 +374,10 @@ export default function EventDashboard({ isHostMode = false }) {
                                 Edit Event
                             </button>
                         )}
+                        <button onClick={exportToExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                            <Download className="w-4 h-4" /> Export Excel
+                        </button>
                         <button onClick={() => navigate(isHostMode ? `/host/event/${id}/checkin` : `/admin/event/${id}/checkin`)}
                             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
                             style={{ background: '#400763' }}>
@@ -291,23 +408,48 @@ export default function EventDashboard({ isHostMode = false }) {
                 )}
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {[
-                        { label: 'Total Tickets Sold', value: stats.totalTickets, sub: `From ${stats.totalBookings} orders`, icon: <Users className="w-6 h-6 text-blue-600" />, bg: 'bg-blue-50' },
-                        { label: 'Checked In', value: stats.scannedTickets, sub: stats.totalTickets > 0 ? `${Math.round((stats.scannedTickets / stats.totalTickets) * 100)}% attendance` : '0% attendance', icon: <QrCode className="w-6 h-6 text-purple-600" />, bg: 'bg-purple-50' },
-                        { label: 'Total Revenue', value: `₹${stats.totalRevenue}`, sub: 'Gross sales', icon: <DollarSign className="w-6 h-6 text-green-600" />, bg: 'bg-green-50' },
-                    ].map(s => (
-                        <div key={s.label} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">{s.label}</p>
-                                    <p className="text-3xl font-bold text-gray-900 mt-1">{s.value}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{s.sub}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {(() => {
+                        // 1. Calculate Recent Momentum (tickets sold in last 24h)
+                        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                        let recentTickets = 0;
+                        registrations.forEach(r => {
+                            if (new Date(r.createdAt) > oneDayAgo) {
+                                recentTickets += (Number(r.numberOfTickets) || 1);
+                            }
+                        });
+
+                        // 2. Calculate Top Club
+                        const clubMap = {};
+                        registrations.forEach(reg => {
+                            const club = reg.club || 'Unknown';
+                            if (!clubMap[club]) clubMap[club] = 0;
+                            clubMap[club] += Number(reg.numberOfTickets) || 1;
+                        });
+                        const sortedClubs = Object.entries(clubMap).sort((a, b) => b[1] - a[1]);
+                        const topClubName = sortedClubs.length > 0 && sortedClubs[0][0] !== 'Unknown'
+                            ? sortedClubs[0][0]
+                            : (sortedClubs.length > 1 ? sortedClubs[1][0] : 'None Yet');
+                        const topClubCount = sortedClubs.length > 0 ? sortedClubs[0][1] : 0;
+
+                        return [
+                            { label: 'Total Tickets Sold', value: stats.totalTickets, sub: `From ${stats.totalBookings} orders`, icon: <Users className="w-6 h-6 text-blue-600" />, bg: 'bg-blue-50' },
+                            { label: 'Total Revenue', value: `₹${stats.totalRevenue}`, sub: 'Gross sales', icon: <DollarSign className="w-6 h-6 text-green-600" />, bg: 'bg-green-50' },
+                            { label: 'Top Participating Club', value: topClubName, sub: topClubCount > 0 ? `${topClubCount} registrations` : 'Waiting for data', icon: <User className="w-6 h-6 text-orange-600" />, bg: 'bg-orange-50' },
+                            { label: 'Recent Momentum', value: `+${recentTickets}`, sub: 'Tickets sold in last 24h', icon: <Calendar className="w-6 h-6 text-green-600" />, bg: 'bg-green-50' },
+                        ].map(s => (
+                            <div key={s.label} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500">{s.label}</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-1">{s.value}</p>
+                                        <p className="text-xs text-gray-400 mt-1">{s.sub}</p>
+                                    </div>
+                                    <div className={`p-3 ${s.bg} rounded-lg group-hover:scale-110 transition-transform`}>{s.icon}</div>
                                 </div>
-                                <div className={`p-3 ${s.bg} rounded-lg group-hover:scale-110 transition-transform`}>{s.icon}</div>
                             </div>
-                        </div>
-                    ))}
+                        ))
+                    })()}
                 </div>
 
                 {/* ── Club Summary Card (click to see full breakdown) ── */}

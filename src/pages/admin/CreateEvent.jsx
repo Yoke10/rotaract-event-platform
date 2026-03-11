@@ -1232,7 +1232,7 @@ export default function CreateEvent() {
                                         required: newFieldDisplayLocation === 'event' ? false : newFieldRequired,
                                         options: opts,
                                         displayLocation: newFieldDisplayLocation,
-                                        value: newFieldDisplayLocation === 'event' ? newFieldValue.trim() : undefined,
+                                        value: newFieldDisplayLocation === 'event' ? newFieldValue.trim() : null,
                                     }]);
 
                                     setNewFieldLabel('');
